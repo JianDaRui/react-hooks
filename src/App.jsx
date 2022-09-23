@@ -1,11 +1,10 @@
 import { useState } from 'react'
-import './App.css'
-import UseState from './use-state/index'
+import LayoutComponent from './layouts'
+import UseState from './pages/use-state/index'
 function App() {
   return (
-    <div className="App">
-      <h1>React Hooks</h1>
-      <UseState />
+    <div>
+      <LayoutComponent />
     </div>
   )
 }
