@@ -1,10 +1,7 @@
 import { lazy } from 'react'
+import { Navigate } from 'react-router-dom'
+
 export const routes = [
-  {
-    path: '/',
-    key: '/',
-    redirect: '/use-state',
-  },
   {
     path: '/use-state',
     key: '/use-state',
