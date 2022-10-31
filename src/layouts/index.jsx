@@ -7,7 +7,7 @@ import Content from './content'
 const LayoutComponent = () => {
 
   return (
-    <Layout style={{ height: '100vh' }}>
+    <Layout className='layout-main' style={{ height: '100vh' }}>
       <Sider />
       <Layout>
         <Header/>

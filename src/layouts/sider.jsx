@@ -36,7 +36,7 @@ const LayoutComponent = () => {
   ];
 
   return (
-    <Sider trigger={null} collapsible collapsed={collapsed}>
+    <Sider trigger={null} collapsible collapsed={collapsed}            >
       <div
         style={{
           height: "64px",

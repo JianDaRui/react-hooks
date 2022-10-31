@@ -10,7 +10,7 @@ const LayoutComponent = () => {
   const [collapsed, setCollapsed] = useState(false);
 
   return (
-      <Header style={{ color: '#fff' }}>
+      <Header style={{ color: '#fff' }} className='layout-header'>
       {React.createElement(collapsed ? MenuUnfoldOutlined : MenuFoldOutlined, {
         className: 'trigger',
         onClick: () => setCollapsed(!collapsed),

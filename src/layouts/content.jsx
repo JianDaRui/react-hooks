@@ -7,7 +7,7 @@ const { Content } = Layout;
 const ContentComponent = () => {
 
 	return (
-		<Content className="site-layout-background"
+		<Content className="layout-content"
 		style={{
 				margin: 16,
 				padding: 16,
