@@ -13,16 +13,194 @@
   - Class 组件的 this 问题
 - 函数组件中没有 this
 
-## useState
+## useState Hook
 
-useState 钩子可以让你在函数组件中定义 & 使用 state。我们一个简单的计数器为例：
+useState hook 主要用来在 function component 组件中进行状态管理。主要负责：
+
+- 在组件渲染更新期间，维持组件状态。
+- 返回一个 setter 函数用来负责更新状态，并触发 React 对组件的重新渲染。
+
+它可以接受一个 init state 作为参数，当调用执行的时候会返回一个包含两个元素的数组：
+
+- 第一个元素是当前 state。
+- 第二个元素是一个 setter 函数，用来更新 state，通常以 set 作为前缀。
+
+使用公式：
 
 ```js
+const [state, setState] = useState(initState)
 ```
 
+示例：
+
+```jsx
+import { useState } from 'react';
+
+function CountButton() {
+  // 初始化 state
+  const [count, setCount] = useState(0)
+  
+  const onClick = () => {
+    setCount(count + 1)
+  }
+  
+  return (
+    <button onClick={onClick}>
+    	{ count }
+    </button>
+  )
+}
+```
+
+- 当点击 button 的时候，会通过 setCount 更新 count，count 发生改变， React 会重新渲染组件。
+
+#### 理解 state snapshot
+
+React 中的状态变量与 JavaScript 变量 在函数中的表现行为并不一样。React 中的 状态变量更像当前组件状态的一个快照。只有当通过执行 setter 函数更新状态变量，重新触发渲染时，才会发生变化。
+
+如何理解? 示例：
+
+```jsx
+import { useState } from 'react';
+
+function CountButton() {
+  // 初始化 state
+  const [count, setCount] = useState(0)
+  
+  const onClick = () => {
+    console.log(count) // 0
+    setCount(count + 1)
+    console.log(count) // 0
+  }
+  
+  return (
+    <button onClick={onClick}>
+    	{ count }
+    </button>
+  )
+}
+
+```
+
+- 上面代码初始状态为 0，点击 button，会会执行 onClick 函数
+- 以通常的思维，代码的执行过程是：打印0、执行setCount, count 加 1 、打印 1
+- 但是实际效果却是：打印0、执行setCount, count 加 1 、打印 0。
+
+你会发现执行 setCount 函数后，并没有立即更新 count。第二个 console 访问的还是当前的状态，setCount 的表现行为更像是一个异步的函数。
+
+React 把这种行为称为：state snapshot。
+
+理解了 state snapshot，我们再来看下批量多次执行 setter 函数，更新状态。下面的代码我们期望实现：
+
+- 点击 +1 时，score 会增加 1
+- 点击 +3 时，通过执行三次 increment，使 score 增加 3 的效果
+
+```jsx
+import { useState } from 'react';
+
+export default function CountButton() {
+  const [score, setScore] = useState(0);
+
+  function increment() {
+    setScore(s + 1);
+  }
+
+  return (
+    <>
+      <button onClick={() => increment()}>+1</button>
+      <button onClick={() => {
+        increment();
+        increment();
+        increment();
+      }}>+3</button>
+      <h1>Score: {score}</h1>
+    </>
+  )
+}
+
+```
+
+但实际情况是，点击 +3，你会发现，score 只进行了一次叠加，别没有想期望的那样。
+
+state snapshot 就可以很好的解释上面代码发生了什么。当通过执行 setScore 函数，触发一次重新渲染时，React 并不会立即改变当前运行中的代码状态：CountButton 组件更新过程中的状态，因此 score 还是 0。
+
+```javascript
+console.log(score);  // 0
+setScore(score + 1); // setScore(0 + 1);
+console.log(score);  // 0
+setScore(score + 1); // setScore(0 + 1);
+console.log(score);  // 0
+setScore(score + 1); // setScore(0 + 1);
+console.log(score);  // 0
+```
+
+#### 更新对象类型
+
+useState 的初始状态参数可以是任意类型的 JavaScript 变量，比如对象。
+
+但是在更新一个对象类型的 state 时，需要你传入一个新的对象，用新的对象去更新 state。
+
+当存在嵌套的情况时，则需要进行多次展开操作。
+
+```jsx
+const [person, setPerson] = useState({
+  name: 'Niki de Saint Phalle',
+  artwork: {
+    title: 'Blue Nana',
+    city: 'Hamburg',
+    image: 'https://i.imgur.com/Sd1AgUOm.jpg',
+  }
+});
+
+function handleNameChange(e) {
+  setPerson({
+    ...person,
+    name: e.target.value
+  });
+}
+
+function handleTitleChange(e) {
+  setPerson({
+    ...person,
+    artwork: {
+      ...person.artwork,
+      title: e.target.value
+    }
+  });
+}
+```
+
+#### 更新数组
+
+与更新对象的操作相似，需要创建一个新的数组。
+
+```jsx
+ const [list, setList] = useState([
+  { id: 0, title: 'Big Bellies', seen: false },
+  { id: 1, title: 'Lunar Landscape', seen: false },
+  { id: 2, title: 'Terracotta Army', seen: true },
+]);
+
+  function handleToggle(artworkId, nextSeen) {
+    setList(list.map(artwork => {
+      if (artwork.id === artworkId) {
+        return { ...artwork, seen: nextSeen };
+      } else {
+        return artwork;
+      }
+    }));
+  }
+```
+
+#### 为什么对于引用类型在更新阶段需要传入一个新的 state。
 
 
 
+### 函数式更新
+
+### 引用类型更新
+
+### 惰性初始化
 
 - 调用 useState 方法的时候做了什么？
 - useState 需要哪些参数?
@@ -119,41 +297,26 @@ useReducer
 
 
 
+- [React Docs](https://beta.reactjs.org/learn)
+
 - 👍[React Hooks: Managing State With useState Hook](https://dev.to/pbteja1998/react-hooks-managing-state-with-usestate-hook-4689)
 - [React Hooks - useState](https://dev.to/brettblox/react-hooks-usestate-43en)
-- 
+- [5 use cases of the useState ReactJS hook](https://dev.to/colocodes/5-use-cases-of-the-usestate-reactjs-hook-4n00)
+- [Making Sense of React Hooks](https://dev.to/dan_abramov/making-sense-of-react-hooks-2eib)
+- [Avoiding race conditions and memory leaks in React useEffect](https://dev.to/saranshk/avoiding-race-conditions-and-memory-leaks-in-react-useeffect-3mme)
+- [How to use async function in React hooks useEffect (Typescript/JS)?](https://javascript.plainenglish.io/how-to-use-async-function-in-react-hook-useeffect-typescript-js-6204a788a435)
+- [Cleaning up Async Functions in React's useEffect Hook (Unsubscribing)](https://dev.to/elijahtrillionz/cleaning-up-async-functions-in-reacts-useeffect-hook-unsubscribing-3dkk)
+- [Guide to React Hook-useContext()](https://dev.to/srishtikprasad/guide-to-react-hook-usecontext-3lp7)
 
+- [Demystifying React Hooks: useContext](https://dev.to/milu_franz/demystifying-react-hooks-usecontext-5g4a)
+- [Replace lifecycle with hooks in React](https://dev.to/trentyang/replace-lifecycle-with-hooks-in-react-3d4n)
+- [React Hooks Best Practices in 2022](https://dev.to/kuldeeptarapara/react-hooks-best-practices-in-2022-4bh0)
+- [Awesome Things Related To React Hooks](https://dev.to/said_mounaim/awesome-things-related-to-react-hooks-30c4)
 
-
-- https://dev.to/dan_abramov/making-sense-of-react-hooks-2eib
-- https://dev.to/tarunyadav1/beginners-guide-to-react-hooks-getting-started-with-react-hooks-4lnd
-- https://dev.to/saranshk/avoiding-race-conditions-and-memory-leaks-in-react-useeffect-3mme
-- https://dev.to/josec/react-useeffect-hook-a-quick-guide-4c3p
-- https://dev.to/abdulwaqar844/what-is-useeffect-hook-in-reactjs-how-useeffect-works-and-where-to-use-it-22im
-- https://dev.to/elijahtrillionz/cleaning-up-async-functions-in-reacts-useeffect-hook-unsubscribing-3dkk
-
-
-
-- https://dev.to/srishtikprasad/guide-to-react-hook-usecontext-3lp7
-- https://dev.to/milu_franz/demystifying-react-hooks-usecontext-5g4a
-- https://dev.to/jackent2b/the-best-couple-usecontext-usereducer-4e65
-
-- https://dev.to/javinpaul/5-best-online-courses-to-learn-react-with-hooks-in-2022-26lf
-- https://dev.to/said_mounaim/awesome-things-related-to-react-hooks-30c4
-- https://dev.to/trentyang/replace-lifecycle-with-hooks-in-react-3d4n
-- https://dev.to/kuldeeptarapara/react-hooks-best-practices-in-2022-4bh0
-
-
-
-- https://medium.com/@sdolidze/react-hooks-memoization-99a9a91c8853
-- https://medium.com/@sdolidze/the-iceberg-of-react-hooks-af0b588f43fb
-- https://medium.com/crowdbotics/how-to-use-usereducer-in-react-hooks-for-performance-optimization-ecafca9e7bf5
-- https://blog.hackages.io/react-hooks-usecallback-and-usememo-8d5bb2b67231
-- https://medium.com/@guptagaruda/react-hooks-understanding-component-re-renders-9708ddee9928
-- https://javascript.plainenglish.io/how-to-use-async-function-in-react-hook-useeffect-typescript-js-6204a788a435
+- [React Hooks: Memoization](https://medium.com/@sdolidze/react-hooks-memoization-99a9a91c8853)
+- [The Iceberg of React Hooks](https://medium.com/@sdolidze/the-iceberg-of-react-hooks-af0b588f43fb)
+- [How to use useReducer in React Hooks for performance optimization](https://medium.com/crowdbotics/how-to-use-usereducer-in-react-hooks-for-performance-optimization-ecafca9e7bf5)
+- [React Hooks: useCallback and useMemo](https://blog.hackages.io/react-hooks-usecallback-and-usememo-8d5bb2b67231)
+- [React Hooks - Understanding Component Re-renders](https://medium.com/@guptagaruda/react-hooks-understanding-component-re-renders-9708ddee9928)
 - https://medium.com/capbase-engineering/asynchronous-functional-programming-using-react-hooks-e51a748e6869
-- https://blog.bitsrc.io/6-reasons-to-use-react-hooks-instead-of-classes-7e3ee745fe04
-
-
-
-- https://dev.to/colocodes/5-use-cases-of-the-usestate-reactjs-hook-4n00
+- [6 Reasons to Use React Hooks Instead of Classes](https://blog.bitsrc.io/6-reasons-to-use-react-hooks-instead-of-classes-7e3ee745fe04)
