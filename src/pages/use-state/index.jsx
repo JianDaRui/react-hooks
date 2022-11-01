@@ -11,7 +11,12 @@ function UseStateFeat() {
     <div>
       <h1 style={{ color: 'red' }}>{random}</h1>
       <h2>{count}</h2>
-      <button onClick={() => setCount(count + 1)}>ADD</button>
+      <button onClick={() => {
+        setCount(count)
+        // setCount(count => count + 1)
+        // console.log(count)
+        // setCount(count + 1)
+      }}>ADD</button>
     </div>
   )
 }

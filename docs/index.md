@@ -1,6 +1,6 @@
 # React Hooks
 
-为什要要有 Hooks:
+为什么要有 Hooks:
 
 - 在组件之间复用状态逻辑很难
   - 通常情况下的 状态逻辑复用方式
@@ -54,11 +54,35 @@ function CountButton() {
 
 - 当点击 button 的时候，会通过 setCount 更新 count，count 发生改变， React 会重新渲染组件。
 
+#### 理解两个关键阶段 render & commit
+
+```jsx
+import { useState } from 'react';
+
+function CountButton() {
+  // 初始化 state
+  const [count, setCount] = useState(0)
+  
+  const onClick = () => {
+    setCount(count)
+  }
+  
+  const random = Math.floor(Math.random() * 100000000000)
+  
+  return (
+    <h1 style={{ color: 'red' }}>判断是否重新渲染: {random}<h1>
+    <button onClick={onClick}>
+    	{ count }
+    </button>
+  )
+}
+```
+
 #### 理解 state snapshot
 
-React 中的状态变量与 JavaScript 变量 在函数中的表现行为并不一样。React 中的 状态变量更像当前组件状态的一个快照。只有当通过执行 setter 函数更新状态变量，重新触发渲染时，才会发生变化。
+在正常的 JavaScript 执行的心智模型中，在函数中代码是由上到下一行一行的执行的。但是React 中的状态变量与 JavaScript 变量在函数中的表现行为并不一样。
 
-如何理解? 示例：
+先看下面一段代码示例：
 
 ```jsx
 import { useState } from 'react';
@@ -82,15 +106,31 @@ function CountButton() {
 
 ```
 
-- 上面代码初始状态为 0，点击 button，会会执行 onClick 函数
-- 以通常的思维，代码的执行过程是：打印0、执行setCount, count 加 1 、打印 1
+- 上面代码初始状态为 0，点击 button，会执行 onClick 函数
+- 以通常的思维，代码的执行过程是：打印0、执行 setCount, count 加 1 、打印 1
 - 但是实际效果却是：打印0、执行setCount, count 加 1 、打印 0。
+
+React 中的状态变量更像当前组件状态的一个快照，会以不变的状态一直存在于当前组件函数中。
+
+我们知道 React 触发渲染的方式有两种：
+
+- 一种是在组件初始化阶段进行的渲染。
+
+- 另一种就是通过执行 setter 函数更新状态变量，重新触发渲染。
 
 你会发现执行 setCount 函数后，并没有立即更新 count。第二个 console 访问的还是当前的状态，setCount 的表现行为更像是一个异步的函数。
 
-React 把这种行为称为：state snapshot。
+- 当 setter 函数改变 state，再次触发渲染时，React 会调用函数组件。
+- 获取一张根据当前状态计算出的新的  JSX  快照。
+- React 会将新的 JSX 快照与视图进行对比更新。
 
-理解了 state snapshot，我们再来看下批量多次执行 setter 函数，更新状态。下面的代码我们期望实现：
+作为 React  的状态存储器，state 并不会在组件函数执行完后立即销毁，而是一直存在于 React 上下文中，React 会为你保存 state。
+
+每次 React 重新调用组件函数时，它会根据罪行的状态为你保存一张当前渲染状态的快照。当视图发生交互事件，通过 setter 函数触发重新渲染时。React 会首先更新状态快照，并根据状态快照计算一个新的 UI 快照与当前视图进行对比更新。
+
+而每次 JSX 快照中的事件所能访问的状态都是基于当前状态快照的。
+
+我们再来看另一个例子，下面的代码我们期望实现：
 
 - 点击 +1 时，score 会增加 1
 - 点击 +3 时，通过执行三次 increment，使 score 增加 3 的效果
@@ -102,7 +142,7 @@ export default function CountButton() {
   const [score, setScore] = useState(0);
 
   function increment() {
-    setScore(s + 1);
+    setScore(score + 1);
   }
 
   return (
@@ -120,9 +160,13 @@ export default function CountButton() {
 
 ```
 
-但实际情况是，点击 +3，你会发现，score 只进行了一次叠加，别没有想期望的那样。
+但实际情况是，点击 +3，你会发现，score 只进行了一次叠加，并没有像期望的那样。
 
-state snapshot 就可以很好的解释上面代码发生了什么。当通过执行 setScore 函数，触发一次重新渲染时，React 并不会立即改变当前运行中的代码状态：CountButton 组件更新过程中的状态，因此 score 还是 0。
+state snapshot 就可以很好的解释上面代码发生了什么：
+
+当通过执行 setScore 函数，触发重新渲染时，React 并不会立即改变当前状态快照，当前快照中的 score 是 0 。三个 setter 函数在同一状态快照中，仅能访问当前快照中的 score，因此每次点击 +3 ，仍然只会进行一次叠加。
+
+过程类似于：
 
 ```javascript
 console.log(score);  // 0
@@ -134,13 +178,110 @@ setScore(score + 1); // setScore(0 + 1);
 console.log(score);  // 0
 ```
 
-#### 更新对象类型
+**在一次渲染中状态变量的值是一直保持不变的**，即使它的事件处理函数是异步的。当 React 调用你的组件函数重新获取 UI 快照时，它的状态就被固定了下来。
 
-useState 的初始状态参数可以是任意类型的 JavaScript 变量，比如对象。
+可以通过下面的代码理解下：
 
-但是在更新一个对象类型的 state 时，需要你传入一个新的对象，用新的对象去更新 state。
+```jsx
+import { useState } from 'react';
 
-当存在嵌套的情况时，则需要进行多次展开操作。
+export default function Counter() {
+  const [number, setNumber] = useState(0);
+
+  return (
+    <>
+      <h1>{number}</h1>
+      <button onClick={() => {
+        setNumber(number + 5);
+        setTimeout(() => {
+          alert(number);
+        }, 3000);
+      }}>+5</button>
+    </>
+  )
+}
+
+```
+
+当 alert 运行的时候， number 已经发生了改变，但是你可以发现点击+5后，alert 的 number 仍然是上一个状态，这是因为 React 使用 state 快照进行了调度处理，保证 alert 访问的状态仍然是触发 setTimeout 时的值。
+
+#### 理解状态可读不可变
+
+1. 对于 string、boolean、number 这种**原始类型的 state**。我们会通过 setter 函数设置一个新的值，来触发组件重新渲染。如果使用原始值会发生什么？
+
+来看段代码：
+
+- 我们用 random 来标记组件是否重新渲染
+- 在 onClick 的时候，调用 setter 函数，但是保持状态不变
+
+```jsx
+import { useState, useEffect } from 'react'
+
+function Counter() {
+  const [count, setCount] = useState(0)
+  const random = Math.floor(Math.random() * 100000000000)
+  return (
+    <div>
+      <h1 style={{ color: 'red' }}>{random}</h1>
+      <h2>{count}</h2>
+      <button onClick={() => {
+        setCount(count)
+      }}>ADD</button>
+    </div>
+  )
+}
+
+export default Counter
+
+```
+
+当你点击 ADD 的时候就会发现，虽然调用了 setCount 函数，但是组件别没有重新渲染。只有真正通过 setCount 函数改变 count 时，组件才会触发重新渲染：
+
+```js
+setCount(count + 1)
+```
+
+这个操作关键的地方在于：你**通过创建一个新的值对原来的状态完成了更新**，并没有更改原来的状态。
+
+2. 我们再来看一下**引用类型的 state**，比如说我们定义了一对象：
+
+```jsx
+const [position, setPosition] = useState({x: 0, y: 0})
+```
+
+我们可以直接在代码中进行更改：
+
+```js
+const onClick = () => {
+  position.x = 800
+  console.log(position)
+}
+```
+
+当用户触发 onClick 事件时，我们更改了 position 的 x 属性，并且可以通过日志看到 position 确实发生了变化。但是并没有触发组件的重新渲染。
+
+这是因为引用类型虽然在 React 函数组件中是可变的，但是你需要将其**视为不可变类型**，在更新的时候通过创建一个新的对象，来触发更新操作。
+
+```js
+const onClick = () => {
+  setPosition({
+    ...position,
+    x: 800
+  })
+}
+```
+
+上面的代码我们为 setPosition 传入了一个新的对象，并通过对原始 position 的进行解构操作，来保留不需要更改的属性。
+
+原理是 React 源码中通过 **Object.is** 对 state 的新旧值进行了浅比较，只有当新旧状态不同时，才会执行触发更新操作。
+
+**所以在 React 中，不管是原始类型还是引用类型的的状态，你都需要将其视为只可读不可变的。**当你想要更新一个状态的时候，就传入一个新的 value 通过 setter 函数来替换状态吧。
+
+当你理解了 React 的状态可读不可变逻辑，就能很轻松的学会对象类型与数组类型的操作方法了：
+
+- 更新对象类型状态
+  - 对于普通的对象在更新时，给 setter 函数传入一个新的字面量对象，通过 ... 解构运算符保留不需要更改的属性，对目标属性设置新的值
+  - 对于嵌套类型的对象，同样需要传入一个新的字面量对象，但是需要对对象进行多次解构操作。
 
 ```jsx
 const [person, setPerson] = useState({
@@ -151,14 +292,14 @@ const [person, setPerson] = useState({
     image: 'https://i.imgur.com/Sd1AgUOm.jpg',
   }
 });
-
+// 更新外层属性
 function handleNameChange(e) {
   setPerson({
     ...person,
     name: e.target.value
   });
 }
-
+// 更新嵌套属性
 function handleTitleChange(e) {
   setPerson({
     ...person,
@@ -170,27 +311,103 @@ function handleTitleChange(e) {
 }
 ```
 
-#### 更新数组
-
-与更新对象的操作相似，需要创建一个新的数组。
+- 更新数组类型状态
+  - 添加操作，需要用 concat 方法或者 [...arr] 展开语法
+  - 删除操作，使用 filter 或 slice 方法
+  - 替换操作，使用 map 方法
+  - 排序操作，首先需要对数组进行克隆操作
 
 ```jsx
- const [list, setList] = useState([
-  { id: 0, title: 'Big Bellies', seen: false },
-  { id: 1, title: 'Lunar Landscape', seen: false },
-  { id: 2, title: 'Terracotta Army', seen: true },
-]);
+const [artists, setArtists] = useState([]);
+// 添加
+setArtists( // Replace the state
+  [ // with a new array
+    ...artists, // that contains all the old items
+    { id: nextId++, name: name } // and one new item at the end
+  ]
+);
 
-  function handleToggle(artworkId, nextSeen) {
-    setList(list.map(artwork => {
-      if (artwork.id === artworkId) {
-        return { ...artwork, seen: nextSeen };
-      } else {
-        return artwork;
-      }
-    }));
-  }
+// 删除
+setArtists(artists.filter(a => a.id !== artist.id));
+
+// 替换
+const nextArtistList = artists.map(item => {
+  // 进行一些逻辑操作
+});
+// Re-render with the new array
+setArtists(nextArtistList);
+
+// 排序
+const sortArtistList = artists.sort(item => {
+  // 进行一些逻辑操作
+});
+// Re-render with the new array
+setArtists(sortArtistList);
 ```
+
+总之，不管你如何操作数组或者数组中的 item，记得给 setter 函数一个新的数组。
+
+#### 惰性初始化
+
+useState 也可以接受一个函数作为初始状态。当初始状态是一个函数的时候，React 只会在组件的第一次挂着阶段调用函数，获取初始状态，在后续的更新阶段并不会再次调用，因此我们通常可以通过给 useState 传入一个函数，让函数做一些计算操作，来获取一个目标初始状态。
+
+```jsx
+import React, { useState } from "react";
+
+function getInitialValue(list) {
+  console.log('获取初始状态')
+ 	return list.filter(item => item.price > 50)
+}
+
+function Counter() {
+  const bookList = [
+    {
+      title: 'ESMAScript 入门',
+      price: 45
+    },
+    {
+      title: 'JavaScript 权威指南',
+      price: 99
+    },
+    {
+      title: 'JavaScript 高级程序设计',
+      price: 89
+    },
+    {
+      title: '你不知道的 JavaScript',
+      price: 39
+    }
+    ,
+    {
+      title: 'JavaScript 精髓',
+      price: 29
+    }
+  ]
+  const [book, setBook] = useState(() => getInitialValue(bookList));
+  function increment() {
+    setCount(count + 1);
+  }
+  return (
+    <div>
+     <input/> <button onClick={increment}>Add Book</button>
+      <ul>
+        {
+          book.map(item => {
+            return (
+             <li key={item.title}>
+                书名：{item.title} ---
+                价格：{item.price}
+            </li>
+            )
+          })
+        }
+      </ul>
+    </div>
+  );
+}
+```
+
+
 
 #### 为什么对于引用类型在更新阶段需要传入一个新的 state。
 
@@ -199,8 +416,6 @@ function handleTitleChange(e) {
 ### 函数式更新
 
 ### 引用类型更新
-
-### 惰性初始化
 
 - 调用 useState 方法的时候做了什么？
 - useState 需要哪些参数?
