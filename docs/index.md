@@ -15,6 +15,8 @@
 
 ## useState Hook
 
+### 初级
+
 useState hook 主要用来在 function component 组件中进行状态管理。主要负责：
 
 - 在组件渲染更新期间，维持组件状态。
@@ -345,98 +347,103 @@ const sortArtistList = artists.sort(item => {
 setArtists(sortArtistList);
 ```
 
-总之，不管你如何操作数组或者数组中的 item，记得给 setter 函数一个新的数组。
+总之，不管你如何操作数组或者数组中的 item，记得给 setter 函数一个新的数组吧。
 
 #### 惰性初始化
 
-useState 也可以接受一个函数作为初始状态。当初始状态是一个函数的时候，React 只会在组件的第一次挂着阶段调用函数，获取初始状态，在后续的更新阶段并不会再次调用，因此我们通常可以通过给 useState 传入一个函数，让函数做一些计算操作，来获取一个目标初始状态。
+从上文中我们可以知道 useState 可以接受任意类型的数据作为初始状态。但有时我们想对初始化的状态先做一些计算操作，比如对数组类型的过滤，并且考虑到初始状态只有在组件的 mounted 阶段有用，所以我们期望这些计算操作仅在初始化阶段执行一次就好。那么我们可能这么写代码：
 
 ```jsx
 import React, { useState } from "react";
 
-function getInitialValue(list) {
-  console.log('获取初始状态')
- 	return list.filter(item => item.price > 50)
+function getInitialValue() {
+  console.log('状态初始化时会被执行');
+  // ...可以添加一些额外逻辑
+  return 0;
 }
 
 function Counter() {
-  const bookList = [
-    {
-      title: 'ESMAScript 入门',
-      price: 45
-    },
-    {
-      title: 'JavaScript 权威指南',
-      price: 99
-    },
-    {
-      title: 'JavaScript 高级程序设计',
-      price: 89
-    },
-    {
-      title: '你不知道的 JavaScript',
-      price: 39
-    }
-    ,
-    {
-      title: 'JavaScript 精髓',
-      price: 29
-    }
-  ]
-  const [book, setBook] = useState(() => getInitialValue(bookList));
+  const [count, setCount] = useState(getInitialValue());
   function increment() {
     setCount(count + 1);
   }
-  return (
-    <div>
-     <input/> <button onClick={increment}>Add Book</button>
-      <ul>
-        {
-          book.map(item => {
-            return (
-             <li key={item.title}>
-                书名：{item.title} ---
-                价格：{item.price}
-            </li>
-            )
-          })
-        }
-      </ul>
-    </div>
-  );
+  return <button onClick={increment}>{count}</button>;
 }
 ```
 
+当你点击 button 并查看日志的时候，你会发现：
+
+- getInitialValue 函数会在每次触发 click 事件的时候执行，这意味着每次渲染的时候都调用了 getInitialValue 函数
+- 但是 getInitialValue 仅在第一次执行的时候是有用的，后面的每次执行结果都会被舍弃，因为后续的状态都使用的是传给 setter 函数的值
+- 这种行为并不符合我们预期，通常 getInitialValue 中很可能做些计算开销很大的操作，这会影响到应用性能
+
+useState 也可以接受一个函数作为初始状态。当初始状态是一个函数的时候，React 只会在组件的第一次挂着阶段调用函数，获取初始状态，在后续的更新阶段并不会再次调用，因此我们通常可以通过给 useState 传入一个函数，让函数做一些计算操作，来获取一个目标初始状态。
+
+如果想要实现仅执行一次的效果，我们可以给 useState 传入一个 callback function，而不是一个函数返回的结果，并且这个 callback 被执行的时候会返回初始状态。
+
+代码示例：
+
+```jsx
+import React, { useState } from "react";
+
+function getInitialValue() {
+  console.log('getInitialValue is getting executed');
+  // ... do some expensive operations
+  return 0;
+}
+
+function Counter() {
+  const [count, setCount] = useState(getInitialValue);
+  function increment() {
+    setCount(count + 1);
+  }
+  return <button onClick={increment}>{count}</button>;
+}
+```
+
+上面的代码在初始挂载阶段，你可以在控制台看到执行 getInitialValue 输出的日志，当你再点击 button 更新 count 的时候，发现 useState 并没有再次执行 getInitialValue，这就是**状态懒加载**。
+
+### 进阶
+
+#### 避免冗余与重复
+
+- 创建的状态是否会引起冲突矛盾
+- 在另一个状态变量中是否已经有相同的信息可用?
+- 能否根据一个状态的相反状态得到一个另一个状态
+
+#### 原则
+
+在一个组件中会可能存在多个 state ，你可以选择 JavaScript 中的任意数据类型，这里有几条原则可以帮助你创建一个更合理的 state 的结构：
+
+- 合并相关状态，如果你总是需要同时更新两个或者多个 state 变量，那么你可以考虑将这些 state 变量组合成一个 state 变量
+- 避免状态矛盾，当一个 state 结构与其他 state 相互矛盾时，你应该避免这种情况，比如存在多个 state 变量用于描述或记录同一操作的不同状态时，你就应该讲这些相互矛盾的 state 合并在一起。
+- 避免状态冗余，如果当前状态在组件渲染期间可以通过 props 或者 其他 state 变量计算出来，那么你没有必要通过 useState 对其进行转换，例如存在一个 state ，它的最新状态总是需要根据其他状态进行计算更新，那么你应该将其从组件 state 中提取出来。放在组件顶层空间，由组件渲染阶段自动完成 state 的更新
+- 避免状态重复，当在多个 state 变量或者嵌套对象中存在相同的数据时，很难进行状态同步，你应该尽量减少重复。这条原则多用于数组类型中，当需要对数组项进行操作时，我们最好选择记录数组项的下标或者 id ，而不是去记录数组项
+- 避免深层嵌套，深层次的嵌套结构是非常不利于数据更新的，因为你需要层层解构，如果可以，尽可能将数据拍平。
 
 
-#### 为什么对于引用类型在更新阶段需要传入一个新的 state。
+
+- 将两个或多个组件中需要共享的状态提升到最近公共父组件
 
 
 
-### 函数式更新
+- 在组件渲染期间通过计算获取状态
 
-### 引用类型更新
+- 状态提升，在组件间共享组件状态
 
-- 调用 useState 方法的时候做了什么？
-- useState 需要哪些参数?
-  - 一个 初始化的 state
-  - 当参数是对象时
-  - 函数式更新：会有一个参数 prevState
-  - 惰性初始 state：`initialState` 参数只会在组件的初始渲染中起作用，后续渲染时会被忽略。
-  - 跳过 state 更新：只有当 state 发生变化的时候才会更新，原理 Object.is() 来比较 state
+- 保持与重置状态，key
 
-- useState 方法的返回值是什么？
+- reducer 对 更新逻辑进行整合管理
 
-- 返回一对值：**当前**状态和一个让你更新它的函数，你可以通过更新函数更新 state，但是它不会把新的 state 和旧的 state 进行合并。
-- `useState` 唯一的参数就是初始 state，初始 state 参数只有在第一次渲染时会被用到。
-- 通过数组解构语法，你可以给 state 变量取不同的变量。
-- 多次调用用例
-- 传入相同的 state 是否更新
-- 
+- 通过 context 实现深层共享
 
-### 对比等价 Class 组件
+- reducer 结合 context 一起使用
 
-### 函数组件
+  
+
+
+
+
 
 ## useEffect
 
