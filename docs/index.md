@@ -405,6 +405,177 @@ function Counter() {
 
 ### 进阶
 
+#### 保存与重置状态
+
+我们知道页面的渲染过程可以简单描述为：浏览器将 HTML 转为 DOM 树，CSS 转为 CSSOM 树，再将两者合并为渲染树，最终将渲染树渲染到页面中。
+
+在当前组件化开发思想的影响下，我们在开始构建页面的时候，通常会将整个页面视为一颗组件树，然后将其拆分为大大小小的不同组件，组件开发完后，我们会将组件像搭积木一样，再组成页面。
+
+组件之间的状态是独立的，React 会根据组件在 **UI 树**中的位置去 Track 每个组件的状态。在组件重新渲染的时候，你可以保留或者重置状态。 
+
+```jsx
+function Counter({ isFancy = false }) {
+  const [score, setScore] = useState(0);
+  const [hover, setHover] = useState(false);
+
+  let className = 'counter';
+  if (hover) {
+    className += ' hover';
+  }
+  if (isFancy) {
+    className += ' fancy';
+  }
+
+  return (
+    <div
+      className={className}
+      onPointerEnter={() => setHover(true)}
+      onPointerLeave={() => setHover(false)}
+    >
+      <h1>{score}</h1>
+      <button onClick={() => setScore(score + 1)}>
+        Add one
+      </button>
+    </div>
+  );
+}
+
+
+```
+
+
+
+```js
+import { useState } from 'react';
+
+export default function App() {
+  const counter = <Counter />;
+  return (
+    <div>
+      {counter}
+      {counter}
+    </div>
+  );
+}
+```
+
+
+
+React 在这中间的主要作用就是将我们写的 JSX 结构转化为一棵虚拟 DOM 树，去与浏览器页面的对应结构进行对比，然后更新目标节点。
+
+当你给一个 React  component 定义了一个组件 state 变量时，你或许认为 state 变量一直存在于组件中，由组件对自己的 state 变量进行管理，其实 state 变量一直是由 React 进行管理的。React 会基于组件在 UI 树的位置，将其管理的 state 变量与组件准确关联起来。
+
+只要组件在 UI 树中被渲染，React 就会保存其 state。并且在后续的更新中， UI 树中相同的位置渲染了相同的组件，则 React 会一直保存与该组件相关的 state。
+
+当你在 UI 树中的同一位置(节点)渲染了不同的组件时，React 会重置整个子组件树状态。
+
+如果你想要在每次渲染的时候保存组件的 state ，则每次重新渲染的 UI 树结构必须匹配，如果结构不匹配，当 组将从 UI 树中移除的时候， React 会销毁其 state。
+
+
+
+#### 如何在相同的位置重置状态
+
+
+
+```jsx
+function Counter({ person }) {
+  const [score, setScore] = useState(0);
+  const [hover, setHover] = useState(false);
+
+  let className = 'counter';
+  if (hover) {
+    className += ' hover';
+  }
+
+  return (
+    <div
+      className={className}
+      onPointerEnter={() => setHover(true)}
+      onPointerLeave={() => setHover(false)}
+    >
+      <h1>{person}'s score: {score}</h1>
+      <button onClick={() => setScore(score + 1)}>
+        Add one
+      </button>
+    </div>
+  );
+}
+
+```
+
+
+
+
+
+```jsx
+import { useState } from 'react';
+
+export default function Scoreboard() {
+  const [isPlayerA, setIsPlayerA] = useState(true);
+  return (
+    <div>
+      {isPlayerA ? (
+        <Counter person="Taylor" />
+      ) : (
+        <Counter person="Sarah" />
+      )}
+      <button onClick={() => {
+        setIsPlayerA(!isPlayerA);
+      }}>
+        Next player!
+      </button>
+    </div>
+  );
+}
+
+```
+
+
+
+方法一：在不同的位置渲染组件
+
+```jsx
+import { useState } from 'react';
+
+export default function Scoreboard() {
+  // ...
+  return (
+    <div>
+      {isPlayerA &&
+        <Counter person="Taylor" />
+      }
+      {!isPlayerA &&
+        <Counter person="Sarah" />
+      }
+      // ...
+  );
+}
+
+```
+
+方法二：为组件标签添加一个唯一的 key
+
+```jsx
+export default function Scoreboard() {
+  // ...
+  return (
+    <div>
+      {isPlayerA ? (
+        <Counter key="Taylor" person="Taylor" />
+      ) : (
+        <Counter key="SarTaylorah" person="Sarah" />
+      )}
+      // ...
+    </div>
+  );
+}
+```
+
+- 当切换的时候，两个组将的 state 不会被保存，因为它们有不同的 key
+- 不同的 key ，React 以 key 作为组件的位置标记而不是其在父组件中的顺序。
+
+
+
 #### 避免冗余与重复
 
 - 创建的状态是否会引起冲突矛盾
@@ -421,11 +592,25 @@ function Counter() {
 - 避免状态重复，当在多个 state 变量或者嵌套对象中存在相同的数据时，很难进行状态同步，你应该尽量减少重复。这条原则多用于数组类型中，当需要对数组项进行操作时，我们最好选择记录数组项的下标或者 id ，而不是去记录数组项
 - 避免深层嵌套，深层次的嵌套结构是非常不利于数据更新的，因为你需要层层解构，如果可以，尽可能将数据拍平。
 
-
-
 - 将两个或多个组件中需要共享的状态提升到最近公共父组件
 
 
+
+#### 组件状态与其在UI树中的位置紧紧关联
+
+- 这个位置是在 UI 树中的位置 而不是 JSX 中的位置
+
+#### 在相同的位置，相同的组件会维持状态
+
+#### 在相同的位置，不同的组件则会重置状态
+
+如果你想要在每次渲染中维持组件状态，那么你需要保证每次渲染中 UI 树 的结构是一样的。
+
+
+
+#### 在相同的位置，重置状态
+
+通过 key 来重置状态
 
 - 在组件渲染期间通过计算获取状态
 
@@ -441,7 +626,239 @@ function Counter() {
 
   
 
+## useReducer Hook
 
+有时候你会发现，在写组件的时候，随着你的业务逻辑变得复杂，组件的代码量也会变得越来越多、更新 state 的事件函数也会越来越多，并且 state 更新逻辑分散在组件的各个事件函数中，这使得你的组件代码难以阅读、进行状态维护。对于这种情况，你就可以使用 userReducer hook 将所有的 state 更新逻辑合并到一个被称为 reducer 的纯函数中。
+
+- 将更新 state 的逻辑转换为 dispatch action
+- 写一个 render 纯函数
+- 在组将中使用 纯函数
+
+创建 reducer 函数
+
+```jsx
+import {useState} from 'react';
+import AddTask from './AddTask.js';
+import TaskList from './TaskList.js';
+
+export default function TaskApp() {
+  const [tasks, setTasks] = useState(initialTasks);
+
+  function handleAddTask(text) {
+    setTasks([
+      ...tasks,
+      {
+        id: nextId++,
+        text: text,
+        done: false,
+      },
+    ]);
+  }
+
+  function handleChangeTask(task) {
+    setTasks(
+      tasks.map((t) => {
+        if (t.id === task.id) {
+          return task;
+        } else {
+          return t;
+        }
+      })
+    );
+  }
+
+  function handleDeleteTask(taskId) {
+    setTasks(tasks.filter((t) => t.id !== taskId));
+  }
+
+  return (
+    <>
+      <h1>Prague itinerary</h1>
+      <AddTask onAddTask={handleAddTask} />
+      <TaskList
+        tasks={tasks}
+        onChangeTask={handleChangeTask}
+        onDeleteTask={handleDeleteTask}
+      />
+    </>
+  );
+}
+
+let nextId = 3;
+const initialTasks = [
+  {id: 0, text: 'Visit Kafka Museum', done: true},
+  {id: 1, text: 'Watch a puppet show', done: false},
+  {id: 2, text: 'Lennon Wall pic', done: false},
+];
+
+```
+
+
+
+第一步：将设置状态逻辑转换为 dispatch action
+
+```js
+// 负责添加任务
+function handleAddTask(text) {
+  setTasks([
+    ...tasks,
+    {
+      id: nextId++,
+      text: text,
+      done: false,
+    },
+  ]);
+}
+// 负责更新任务
+function handleChangeTask(task) {
+  setTasks(
+    tasks.map((t) => {
+      if (t.id === task.id) {
+        return task;
+      } else {
+        return t;
+      }
+    })
+  );
+}
+// 负责删除任务
+function handleDeleteTask(taskId) {
+  setTasks(tasks.filter((t) => t.id !== taskId));
+}
+```
+
+更新后：
+
+```js
+function handleAddTask(text) {
+  dispatch({
+    type: 'added',
+    id: nextId++,
+    text: text,
+  });
+}
+
+function handleChangeTask(task) {
+  dispatch({
+    type: 'changed',
+    task: task,
+  });
+}
+
+function handleDeleteTask(taskId) {
+  dispatch({
+    type: 'deleted',
+    id: taskId,
+  });
+}
+```
+
+- 在事件处理函数中没有通过 setter 函数更新 state，而是通过 dispatch 函数描述用户的动作。
+- 使用 render 管理状态与直接通过 setter 函数更新状态有所不同，setter 函数是直接告诉 React 需要做什么，而 reducer 是通过 dispacth 函数用于描述用户刚刚做了什么，
+- 在上面的代码中我们给 dispatch 函数传递了一个对象，这个对象在 React 中，通常被称为 action。
+- action 对象可以有任意类型的属性，但是通常会有一个 type 属性用于描述 **发生了什么**，而其他字段则作为 荷载，
+
+
+
+##### 写一个 rendcer 纯函数
+
+- 我们将所有的 state 更新逻辑放在 reducer 函数中，reducer 函数接收两个参数：当前 state 与 action 对象，并且它需要返回一个新的 state。
+- reducer 函数都存在于组件函数外部，因此我们可以将其提取到组件文件外部。专用于做 state 更新操作。
+
+```js
+function tasksReducer(tasks, action) {
+  switch (action.type) {
+    case 'added': {
+      return [
+        ...tasks,
+        {
+          id: action.id,
+          text: action.text,
+          done: false,
+        },
+      ];
+    }
+    case 'changed': {
+      return tasks.map((t) => {
+        if (t.id === action.task.id) {
+          return action.task;
+        } else {
+          return t;
+        }
+      });
+    }
+    case 'deleted': {
+      return tasks.filter((t) => t.id !== action.id);
+    }
+    default: {
+      throw Error('Unknown action: ' + action.type);
+    }
+  }
+}
+
+```
+
+
+
+第三步：在组件中使用 reducer 函数。
+
+- 从组件中导出 useReducer hook
+
+```jsx
+import {useReducer} from 'react';
+```
+
+- 传入 reducer 函数 & 初始 state
+
+```js
+const [tasks, dispatch] = useReducer(tasksReducer, initialTasks);
+```
+
+- useReducer 函数会返回两个值，一个是 state 的值，一个是 dispatch 函数，用于派发 action 对象至 reducer  函数。
+
+完成上面三步，你可以看到，因为 reducer 函数聚合了所有 state 的更新逻辑，所以可以一看看到所有的 state 更新逻辑，并且组件函数也不再臃肿。
+
+### useState VS useReducer
+
+1. **代码体积方面：**
+
+这个需要结合具体的 state 变量类型和组件中的业务逻辑来说，如果 state 变量只是简单的 boolean 、number 、string 类型，则使用 useState 更直接，代码可读性也更好，如果 变量类型是 object 或者 array 类型并且函数组件中存在多个事件处理函数用于更新 state 变量，则使用 useReducer 更高效、代码可读性更好，因为 useReducer 可以聚合所有 state 更新操作，并避免组件代码臃肿。具体例子，可以结合表单更新或者表格的增、删、改、查就可以体会到。
+
+2. **测试方面**：
+
+这方面应该是 useReducer  完胜。因为 useReducer 函数必须是纯函数，没有任何外部依赖，所以你可以将其导出进行测试并进行断言操作查看具体的 state & action 对象情况。
+
+3. **调试方面**：
+
+当 useState 出现错误时，很难判断状态设置错误的具体位置以及原因。而使用 useReducer，你可以在 reducer 中添加 console 日志，以查看状态的具体更新情况，以及它发生的原因(由于哪个操作)。如果每个 actions 对象都是正确的，你就会知道错误出在 reducer 函数逻辑中。但是，与 useState 相比，您必须判断每种情况。
+
+4. **两者的关系**
+
+实际上，在 React 内部，useState 就是用 useReducer 实现的，useState 返回的函数内部封装了一个 dispatch。用 useReducer 实现 useCustomState：
+
+```js
+function useCustomState(initialState) {
+  
+  // 特殊的 reducer
+  const reducer = (state, action) => {
+    if (typeof action === 'function') {
+      return action(state);
+    }
+    return action;
+  };
+  
+  const [state, dispatch] = useReducer(initialState, reducer);
+
+  // setState 和 dispatch 一样引用也不变的
+  const setState = useCallback(action => {
+    dispatch(action);
+  }, []);
+
+  return [state, setState];
+}
+```
+
+## useContext
 
 
 
@@ -520,21 +937,20 @@ useReducer
 
 
 - [React Docs](https://beta.reactjs.org/learn)
-
 - 👍[React Hooks: Managing State With useState Hook](https://dev.to/pbteja1998/react-hooks-managing-state-with-usestate-hook-4689)
 - [React Hooks - useState](https://dev.to/brettblox/react-hooks-usestate-43en)
 - [5 use cases of the useState ReactJS hook](https://dev.to/colocodes/5-use-cases-of-the-usestate-reactjs-hook-4n00)
+- [2 use cases of the useReducer ReactJS hook](https://dev.to/colocodes/2-use-cases-of-the-usereducer-reactjs-hook-ine)
+- [React Hooks: useState 和 useReducer 有什么区别？](https://zhuanlan.zhihu.com/p/336837522)
 - [Making Sense of React Hooks](https://dev.to/dan_abramov/making-sense-of-react-hooks-2eib)
 - [Avoiding race conditions and memory leaks in React useEffect](https://dev.to/saranshk/avoiding-race-conditions-and-memory-leaks-in-react-useeffect-3mme)
 - [How to use async function in React hooks useEffect (Typescript/JS)?](https://javascript.plainenglish.io/how-to-use-async-function-in-react-hook-useeffect-typescript-js-6204a788a435)
 - [Cleaning up Async Functions in React's useEffect Hook (Unsubscribing)](https://dev.to/elijahtrillionz/cleaning-up-async-functions-in-reacts-useeffect-hook-unsubscribing-3dkk)
 - [Guide to React Hook-useContext()](https://dev.to/srishtikprasad/guide-to-react-hook-usecontext-3lp7)
-
 - [Demystifying React Hooks: useContext](https://dev.to/milu_franz/demystifying-react-hooks-usecontext-5g4a)
 - [Replace lifecycle with hooks in React](https://dev.to/trentyang/replace-lifecycle-with-hooks-in-react-3d4n)
 - [React Hooks Best Practices in 2022](https://dev.to/kuldeeptarapara/react-hooks-best-practices-in-2022-4bh0)
 - [Awesome Things Related To React Hooks](https://dev.to/said_mounaim/awesome-things-related-to-react-hooks-30c4)
-
 - [React Hooks: Memoization](https://medium.com/@sdolidze/react-hooks-memoization-99a9a91c8853)
 - [The Iceberg of React Hooks](https://medium.com/@sdolidze/the-iceberg-of-react-hooks-af0b588f43fb)
 - [How to use useReducer in React Hooks for performance optimization](https://medium.com/crowdbotics/how-to-use-usereducer-in-react-hooks-for-performance-optimization-ecafca9e7bf5)
