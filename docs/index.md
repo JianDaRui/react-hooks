@@ -860,6 +860,186 @@ function useCustomState(initialState) {
 
 ## useContext
 
+useContext hook 主要解决的是数据透传与共享的问题。在业务开发过程中，经常会遇到需要将父组件的数据传递给多个子组件或者c孙组件的情况，如果全部采用 props 层层传递的话，会使代码变得非常冗长，不便于组件状态的维护管理，为了解决这个问题，React 提供了一个可以共享上下文的 Hook —— useConext，useContext 可以使父组件将自己的状态共享给其任意子孙组件，不管这个组件层级有多深，而不是通过 props 的方式。
+
+代码示例：
+
+```jsx
+function Heading({ level, children }) {
+  switch (level) {
+    case 1:
+      return <h1>{children}</h1>;
+    case 2:
+      return <h2>{children}</h2>;
+    case 3:
+      return <h3>{children}</h3>;
+    case 4:
+      return <h4>{children}</h4>;
+    case 5:
+      return <h5>{children}</h5>;
+    case 6:
+      return <h6>{children}</h6>;
+    default:
+      throw Error('Unknown level: ' + level);
+  }
+}
+
+function Section({ children }) {
+  return (
+    <section className="section">
+      {children}
+    </section>
+  );
+}
+
+export default function Page() {
+  return (
+    <Section>
+      <Heading level={1}>Title</Heading>
+      <Section>
+        <Heading level={2}>Heading</Heading>
+        <Heading level={2}>Heading</Heading>
+        <Heading level={2}>Heading</Heading>
+        <Section>
+          <Heading level={3}>Sub-heading</Heading>
+          <Heading level={3}>Sub-heading</Heading>
+          <Heading level={3}>Sub-heading</Heading>
+          <Section>
+            <Heading level={4}>Sub-sub-heading</Heading>
+            <Heading level={4}>Sub-sub-heading</Heading>
+            <Heading level={4}>Sub-sub-heading</Heading>
+          </Section>
+        </Section>
+      </Section>
+    </Section>
+  );
+}
+```
+
+- 上面代码示例中，Heading 组件可接受一个 level 属性用于标题层级显示
+- 你会发现在相同的 Section 组件中的多个 Heading 组件，都接受了相同的 level 属性
+- 这种情况对于代码维护非常困难
+
+接下来我们就可以使用 useContext 重构上面的代码，如果对于同一层级的 Heading 组件，我们可以将 level 传递给其最近的父组件 Section。再由 Section 组件传递给 Heading 组件，则可以减少部分重复代码：
+
+```jsx
+export default function Page() {
+  return (
+    <Section level={1}>
+      ...
+      <Section level={2}>
+        ...
+        <Section level={3}>
+          ...
+```
+
+- 在 Page 组件中我们将需要直接传递给 Heading 的 level 属性传递给 Section 组件，再由 Section 组件传递给子组件 Heading。
+
+那 Section 组件中的 children 如何接收 level 属性？我们可以使用 Context API 进行重构，主要需要三步操作：
+
+第一步：创建一个 Context。你需要从 react 中导出 createContext API
+
+```jsx
+// LevelContext.js
+import { createContext } from 'react';
+
+export const LevelContext = createContext(1);
+```
+
+- createContext 可以接受任意数据类型的参数作为初始值，这里传递的是一个 number 类型的
+
+第二步：在父组件 Page 中派发数据
+
+```jsx
+import { LevelContext } from './LevelContext.js';
+
+export default function Section({ level, children }) {
+  return (
+    <section className="section">
+      <LevelContext.Provider value={level}>
+        {children}
+      </LevelContext.Provider>
+    </section>
+  );
+}
+```
+
+- 所有需要父组件数据的子孙组件必须被 LevelContext 的派发器**包裹**起来。
+
+第三步：在 Heading 组件中获取数据
+
+```jsx
+import { useContext } from 'react';
+import { LevelContext } from './LevelContext.js';
+
+export default function Heading({ children }) {
+  const level = useContext(LevelContext);
+  switch (level) {
+    // 省略部分代码...
+  }
+}
+```
+
+- 在目标组件中调用 useContext hook，并将 LevelContext 传递给 useContext。
+- 这个操作也就是告诉 Heading 组件需要读取 LevelContext 的数据
+
+经过这三步以后，你已经可以看到一个符合预期的 Page 结构。
+
+Page 组件的代码现在是这样的：
+
+```jsx
+export default function Page() {
+  return (
+    <Section level={1}>
+      ...
+      <Section level={2}>
+        ...
+        <Section level={3}>
+          ...
+```
+
+- 这意味着你仍然需要明确 Section 组件属于哪个层级。
+
+由于 Context API 可以使当前组件获取其上层派发的数据。也就是说 Section 组件可以获取其上层 Scetion 组件派发的数据。因此我们可以在 Section 组件中使用 useContext Hook 来获取当前的 level，而不是通过给 Section 传递 props。
+
+代码示例：
+
+```jsx
+import { useContext } from 'react';
+import { LevelContext } from './LevelContext.js';
+
+export default function Section({ children }) {
+  // 获取上层组件派发的 LevelContext
+  const level = useContext(LevelContext);
+  return (
+    <section className="section">
+      <LevelContext.Provider value={level + 1}>
+        {children}
+      </LevelContext.Provider>
+    </section>
+  );
+}
+```
+
+在 Page 组件中去除 Section 标签上的 props：
+
+```jsx
+export default function Page() {
+  return (
+    <Section>
+      ...
+      <Section>
+        ...
+        <Section>
+          ...
+```
+
+现在组件嵌套层级有多深，Heading 组件 & Section 组件都是通过读取 LevelContext 来获取 level，Section 又通过 LevelContext 派发器对子组件进行包裹，保证了组件间的层级关系。
+
+### useContext VS Props
+
+
+
 
 
 ## useEffect
