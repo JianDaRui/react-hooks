@@ -1038,7 +1038,7 @@ export default function Page() {
 
 ### useContext VS Props
 
-
+从代码表现来看 使用 useContext 可以使组件标签看上去更简洁干净。
 
 
 
