@@ -1038,11 +1038,36 @@ export default function Page() {
 
 ### useContext VS Props
 
-从代码表现来看 使用 useContext 可以使组件标签看上去更简洁干净。
+从代码表现来看 使用 useContext 可以使组件标签看上去更简洁干净。这很可能导致你在开发过程中过度使用 useContext。实际开发过程中如果真的遇到在组件树中需要深层传递 props 的情况，也并不意味这你必须使用 useContext 来解决问题。
+
+这种情况下，在使用 useContext 之前还有下面两个方面需要你考虑。
+
+1. **当在组件层级树中，每层都需要顶层组件分享 props 时，可以选择 props 来解决问题**。当你的组件很普通的时候，通过给很多组件传递很多 props 的情况很常见。这样做虽然看上去很麻烦，你需要给每个组件添加 props 属性，但是这种方式可以让你的组件**数据流**很清晰，一眼便可以让你知道哪个组件使用了哪些 props，对于后续的维护也很方便。
+2. **当面临 props 透传时，可以将子组件抽离抽离出来，将子组件作为 props 传递给透传组件**。当在实际开过过程中，如果遇到组件透传的情况：你需要将 props 传递多层，但是这些负责传递的组件并不使用 props 数据，这意味着你可以将实际使用 props 数据的组件抽离出来，将组件作为 props 传递。比如有一个 <Layout posts={posts} /> 组件，Layout 组件会透传数据，则你可以将 Layout 中实际使用该 props 的 Post 组件抽离出来传递给 Layout。让 Post 组件直接接收数据，像这样：<Layout><Posts posts={posts} /></Layout>。这可以减少负责**维护数据的组件**与实际**使用数据的组件**之间的层级数量。
+3. 适合使用 useContext 的场景：主题、当前用户信息、路由、状态管理。
+
+### Context & Reducer 结合使用
+
+通过上面的学习可以知道：
+
+- Reducer 可以将组件的 state 更新逻辑整合在一起
+- Context 可以将组件信息向深层传递
+
+为此你可以将 Reducer & Context 结合在一起，使用 Context 将 Reducer  状态与 dispatch 向下传递。
 
 
 
-## useEffect
+## 逃生舱
+
+## useRef
+
+当你需要在组件中一直缓存一些状态，但是并不想因为这些状态的改变而重新触发渲染，那么你可以使用 ref。
+
+### 初级
+
+### refs vs state
+
+
 
 ### 每一次渲染都有它自己的 Props and State
 
@@ -1117,7 +1142,7 @@ useReducer
 
 
 - [React Docs](https://beta.reactjs.org/learn)
-- 👍[React Hooks: Managing State With useState Hook](https://dev.to/pbteja1998/react-hooks-managing-state-with-usestate-hook-4689)
+- [React Hooks: Managing State With useState Hook](https://dev.to/pbteja1998/react-hooks-managing-state-with-usestate-hook-4689)
 - [React Hooks - useState](https://dev.to/brettblox/react-hooks-usestate-43en)
 - [5 use cases of the useState ReactJS hook](https://dev.to/colocodes/5-use-cases-of-the-usestate-reactjs-hook-4n00)
 - [2 use cases of the useReducer ReactJS hook](https://dev.to/colocodes/2-use-cases-of-the-usereducer-reactjs-hook-ine)
