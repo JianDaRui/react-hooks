@@ -1061,15 +1061,153 @@ export default function Page() {
 
 ## useRef
 
-当你需要在组件中一直缓存一些状态，但是并不想因为这些状态的改变而重新触发渲染，那么你可以使用 ref。
+通过上文可以知道，使用 useState、useReducer、useContext 创建的状态，都是不可变的，一旦更新就会触发组件的重新渲染。但是实际开发过程中你经常需要一些不希望引起组件重新渲染的状态、并且希望在组件的生命周期中，该状态能被一直保持在 React 中。
 
-### 初级
+Refs 就是为了解决这个问题提出来的。
+
+当你需要在组件中一直缓存一些状态，但是并不想因为这些状态的改变而重新触发渲染，那么你可以选择使用 ref。
+
+使用示例：
+
+```jsx
+// 1. 从 react 中导出 useRef hook，并在函数组件中调用
+import { useRef } from 'react';
+
+export default function Counter() {
+  // 2. 调用 useRef 并进行初始化
+  let countRef = useRef(0);
+
+  function handleClick() {
+    // 3. 当前引用值会发生变化，但是并不会触发组件的重新渲染
+    countRef.current = countRef.current + 1;
+    console.log(countRef.current)
+  }
+
+  return (
+    <button onClick={handleClick}>
+      You clicked {countRef.current} times
+    </button>
+  );
+}
+
+```
+
+- 当你点击 button 的时候，会发现页面并没有更新 countRef.current 最新值，但是控制台中的 countRef.current 确每次会更新变化
+- useRef 会给你返回一个带有 current 属性的对象，你可以通过 ref.current 访问当前值。
+- useRef 与 useState 返回的状态不同之处就是：ref.current 的值是可变的，你可以直接通过 ref.current = newValue，进行更改。
+- 并且更改 useRef 不会触发组件的重新渲染，这是因为 react 没有对 ref 的值进行 track 操作。
+
+通常我们会在哪种情况下使用 useRef：
+
+- 当你需要操作 DOM 的时候，可以使用 ref 保持对 DOM 的引用
+- 当你需要使用 计时器时，可以保持对计时器的引用，以保证在恰当的时机可以重置计时器
+- 当你需要记录一些不影响组件重新渲染的状态时。
+
+#### 操作 DOM
+
+```jsx
+import { forwardRef, useRef } from 'react';
+
+const MyInput = forwardRef((props, ref) => {
+  return <input {...props} ref={ref} />;
+});
+
+export default function Form() {
+  const inputRef = useRef(null);
+
+  function handleClick() {
+    inputRef.current.focus();
+  }
+
+  return (
+    <>
+      <MyInput ref={inputRef} />
+      <button onClick={handleClick}>
+        Focus the input
+      </button>
+    </>
+  );
+}
+```
+
+
+
+#### 最佳实践
+
+- 将 refs 作为 react 的一个逃生舱。当你需要调用系统或者浏览器的一些原生 API 的时候，refs 是非常有用的。但是当你的组件逻辑合作和数据流需要依赖 ref 的值时，你需要重新思考你的编码方式。
+- 在渲染时读取或者更改 ref 的值，如果有些信息需要在渲染时用到，则使用 state 代替。
+- React 对 state 的限制不会作用于 refs。例如 state 的行为在每次渲染时更像是一张快照并且不会同步更新。但是 ref 的值是同步立即改变的。因为 ref 本身是一个常规的 JavaScript Object ，
+  
 
 ### refs vs state
 
+#### React 何时跟新 refs
+
+在 React 中，每次更新会分为两个阶段：
+
+- 阶段一渲染期间，React 会调用组件函数计算出哪些内容应该渲染到视图上
+- 阶段二 commit 期间，React 会将计算出来的 DOM 更新到真实的 DOM 上
+
+通常情况下，你不希望在渲染过程中访问 refs。这也适用于持有 DOM 节点的 ref。在第一次渲染期间，DOM 节点还没有创建，因此ref.current 将为空。在渲染更新期间，DOM 节点还没有更新。所以在渲染过程中读取还为时过早。
+
+React 在会在 commit 阶段设置 ref.current。在更新 DOM 之前，React 将受影响的 ref.current 值设置为 null。更新 DOM 之后，React 立即将它们设置为相应的 DOM 节点。
+
+通常，你会从事件处理程序访问 refs。如果你想用一个 ref 来做一些事情，但是没有特定的事件来做它，你可能需要一个 Effect。
 
 
-### 每一次渲染都有它自己的 Props and State
+
+## 使用 Effect 进行同步
+
+一些组件需要与外部系统进行同步操作。例如，你或许想基于 React 状态去控制一个非 React 的组件，比如与服务端简历链接、当组件出现在视图的时候，发送一个分析日志。Effects 允许你在渲染之后运行一些代码，以便你可以将组件与 React 外部的某些系统同步。
+
+### 什么是 Effects？它们与事件有何不同之处？
+
+在了解 Effects 之前，你必须熟悉 React 组件内部的两种类型的逻辑：
+
+- 渲染代码(主要负责描述 UI)会一直存在于你的组件顶层。在顶层你可以操作转换 props 、state，并且返回视图所需渲染的 JSX 结构。渲染代码必须是纯函数。像一个数学方程式，仅负责计算结果，而不做其他任何事情。
+- 事件处理函数(主要负责交互)是组件内的嵌套函数。它们主要负责执行任务。事件函数可以更新字段、触发 HTTP 请求、进行页面导航。由于事件函数通常负责与用户的交互，所以会触发程序状态的改变。而造成这种变化的行为，我们称为 **副作用**。
+
+**Effects 可以让你明确声明由渲染事件本身引起的副作用，而不是事件函数引起的副作用。**例如在聊天窗口发送一条信息是一个时间，因为它是由用户具体的点击操作引起的。而与服务器建立链接是一个 effect，因为不管是用户的哪个操作，都需要发生链接。
+
+Effects 在视图更新结束后的渲染进程结束时运行，这对于同步 React 组件与外部系统是非常好的时机。
+
+### 如何写一个 Effect
+
+1. 声明一个 Effect。默认情况下，Effect 会在每次渲染后运行。
+2. 声明 Effect 依赖。大多数的 Effect 应该仅当需要的时候在运行，而不是每次渲染之后，例如，一个 fade-in 动画应该仅在组件出现的时候运行一次。链接或者断开聊天室，应该仅在组件出现或者消失时运行。你应该通过声明具体的依赖来控制 effect 的运行。
+3. 如果有需要，则添加一个 `cleanup` 函数。有些副作用需要明确指出如何停止、撤销或者清除，例如链接需要断开连接、订阅需要取消订阅。
+
+依赖数组中可以包含多个依赖项，只要依赖数组有一项状态发生改变，不同与上一次的渲染，则 React 就会重新渲染。React 内部会使用 Object.is API 对依赖项进行比较。
+
+**在 React 中，渲染期间应该是 JSX 的纯计算操作，不应该有副作用，例如修改操作 DOM **。
+
+在 dev 环境下，React 会默认重复挂载你的组件，这是为了确保你能及时发现 bug。当然你可以通过使用严格模式来避免这个行为
+
+### 什么情况下会导致无限循环
+
+Effects 运行作为渲染的结果，如果不当操作会引发无限循环的情况。
+
+
+
+### 控制非 React 物料
+
+### 订阅事件
+
+### 触发动画
+
+### 获取数据
+
+### 发送日志
+
+### 非 Effect 需要再初始化阶段运行，则移动到组件外部
+
+当应用初始化的时候，有些逻辑仅需要运行一次，那么你可以选择将其放在组件外部。
+
+
+
+Effects允许指定由呈现本身而不是由特定事件引起的副作用。
+
+每一次渲染都有它自己的 Props and State
 
 ### 每一次渲染都有它自己的事件处理函数
 
@@ -1112,8 +1250,6 @@ export default function Page() {
 
 ### 在依赖列表中省略函数是否安全？
 
-### vs Class 组件
-
 
 
 ### Effect 的提示
@@ -1123,14 +1259,6 @@ export default function Page() {
 #### 为什么每次更新的时候都要运行 Effect
 
 #### 通过跳过 Effect 进行性能优化
-
-## `useContext`
-
-接收一个 context 对象（`React.createContext` 的返回值）并返回该 context 的当前值。当前的 context 值由上层组件中距离当前组件最近的 `<MyContext.Provider>` 的 `value` prop 决定。
-
-
-
-useReducer
 
 ## 自定义 Hook
 
