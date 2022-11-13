@@ -1187,27 +1187,991 @@ Effects 在视图更新结束后的渲染进程结束时运行，这对于同步
 
 Effects 运行作为渲染的结果，如果不当操作会引发无限循环的情况。
 
+### 使用场景
+
+#### 控制非 React 物料
+
+比如有时你需要添加一个不是 React 写的 UI 物料。例如，你计划向页面添加一个 Map 组件，它有一个 setZoomLevel() 方法，你想要在 React 组件代码中通过状态变量 zoomLevel 来保持 Map 组件的缩放效果。你的 Effect 应该是下面这种写法：
+
+```js
+useEffect(() => {
+	const map = mapRef.current
+  map.setZoomlevel(zoomLevel)
+}, [zoomLevel])
+```
+
+注意这种情况下不需要 cleanup 函数。在开发环境中，React 将调用两次这个 Effect，虽然会调用两次，但是不会有任何问题，因为两次调用的过程中 zoomLevel 的值是没有变化的，这意味着 React 不会做任何处理。他可能会轻微的变慢，但这不是事，它只会发生在开发环境中，而不是生产环境。
+
+有些 API 或许不允许你连续调用两次。例如，如果你连续调用两次 HTML 原生标签 dialog 的 showModal 方法，它将会抛出错误。这是你可以通过执行一个 cleanup 函数来关闭 dialog。
+
+代码示例：
+
+```js
+useEffect(() => {
+  const dialog = dialogRef.current;
+  dialog.showModal();
+  return () => dialog.close();
+}, []);
+```
+
+#### 订阅事件
+
+如果你在 Effect 中订阅了某些事件，则可以通过 cleanup 函数取消订阅。
+
+```jsx
+seEffect(() => {
+  function handleScroll(e) {
+    console.log(e.clientX, e.clientY);
+  }
+  window.addEventListener('scroll', handleScroll);
+  return () => window.removeEventListener('scroll', handleScroll);
+}, []);
+```
 
 
-### 控制非 React 物料
 
-### 订阅事件
+- 在开发环境中，会首先调用 addEventListener，然后立即执行 removeEventListener 方法，然后再次调用 addEventListener
+- 在生产环境中，仅会调用一次 addEventListener
 
-### 触发动画
+#### 触发动画
 
-### 获取数据
+如果你的 Effect 中做了些动画效果，则 cleanup 函数可以将动画效果重置为初始值。
 
-### 发送日志
+```jsx
+useEffect(() => {
+  const node = ref.current;
+  node.style.opacity = 1; // Trigger the animation
+  return () => {
+    node.style.opacity = 0; // Reset to the initial value
+  };
+}, []);
+```
+
+#### 获取数据
+
+如果你在 Effect 函数中发起了请求事件，则可以在 cleanup 函数中选择放弃请求或者忽略请求结果。
+
+```jsx
+useEffect(() => {
+  let ignore = false;
+
+  async function startFetching() {
+    const json = await fetchTodos(userId);
+    if (!ignore) {
+      setTodos(json);
+    }
+  }
+
+  startFetching();
+
+  return () => {
+    ignore = true;
+  };
+}, [userId]);
+```
+
+你不能撤销一个已经发生的网络请求，但是你可以通过 cleanup 函数确保无关的 fetch 影响到你的应用。例如，在一个聊天室中，如果 userId 由 Alice 切换为 Bob 后，cleanup 函数可以确保即使切换到 Bob 之后，有关 Alice 的响应也能被忽略。
+
+#### 发送日志
+
+有时候你可能需要在组件中进行买点或者发送一些日志。
+
+```jsx
+useEffect(() => {
+  logVisit(url); // Sends a POST request
+}, [url]);
+```
+
+
 
 ### 非 Effect 需要再初始化阶段运行，则移动到组件外部
 
 当应用初始化的时候，有些逻辑仅需要运行一次，那么你可以选择将其放在组件外部。
 
+```jsx
+if (typeof window !== 'undefined') { // Check if we're running in the browser.
+  checkAuthToken();
+  loadDataFromLocalStorage();
+}
+
+function App() {
+  // ...
+}
+```
+
+#### 非 Effect：购买产品
+
+有时，即使你写了一个 cleanup 函数，也无法避免一些运行两次 Effect 两次所引发的后果。例如，下面的代码，在 Effect 中会发送一个购买产品的 POST 请求：
+
+```jsx
+useEffect(() => {
+  // 🔴 Wrong: This Effect fires twice in development, exposing a problem in the code.
+  fetch('/api/buy', { method: 'POST' });
+}, []);
+```
+
+你并不想购买两次产品。然而这也是为什么你不能将请求逻辑放在 Effect 中的原因。试想一下，如果用户跳转到了另一个页面然后又回退到本页面，你的 Effect 将运行两次，然而你不想当用户访问页面的时候进行两次购买操作，你想仅在用于点击 button 的时候发起 购买的请求。
+
+由此可以看出，购买操作不是由渲染引起的，而是由一个具体的点击交互操作引起的。因为点击仅会进行一次，所以他应该也仅运行一次。因此，你应该将发起购买请求的代码逻辑从 Effect 中移除，将其放到购买按钮触发的事件函数中:
+
+```jsx
+  function handleClick() {
+    // ✅ Buying is an event because it is caused by a particular interaction.
+    fetch('/api/buy', { method: 'POST' });
+  }
+```
+
+这说明如果重新挂载的操作影响到拟组建的逻辑，这种情况通常存在 bug。从用户的视角来看，访问一个页面，然后跳转，然后再返回，不应该有所变化。React 在开发环境下的重新挂载逻辑，保证了你的组件不会破坏这个规则。
+
+### 将所有的放在一起
+
+下面的例子可以让你通过实践来感受下 Effect 是如何工作的。
+
+实例代码中，会在 Effect 运行之后，使用 setTimeout 在三秒后调用 console 去打印 input 中的文本。cleanup 函数会取消 timeoutId，点击 Mount the component 开始。
+
+Playground 组件
+
+```jsx
+import { useState, useEffect } from 'react';
+
+function Playground() {
+  const [text, setText] = useState('a');
+
+  useEffect(() => {
+    function onTimeout() {
+      console.log('⏰ ' + text);
+    }
+
+    console.log('🔵 Schedule "' + text + '" log');
+    const timeoutId = setTimeout(onTimeout, 3000);
+
+    return () => {
+      console.log('🟡 Cancel "' + text + '" log');
+      clearTimeout(timeoutId);
+    };
+  }, [text]);
+
+  return (
+    <>
+      <label>
+        What to log:{' '}
+        <input
+          value={text}
+          onChange={e => setText(e.target.value)}
+        />
+      </label>
+      <h1>{text}</h1>
+    </>
+  );
+}
+```
+
+App 组件
+
+```jsx
+import { useState } from 'react';
+
+export default function App() {
+  const [show, setShow] = useState(false);
+  return (
+    <>
+      <button onClick={() => setShow(!show)}>
+        {show ? 'Unmount' : 'Mount'} the component
+      </button>
+      {show && <hr />}
+      {show && <Playground />}
+    </>
+  );
+}
+
+```
+
+- 首先你会看到控制台输出了：Schedule "a" log`→ `Cancel "a" log` → `Schedule "a" log，三秒之后有输出 "a"
+- 正如你在上文所了解到的，额外的调度/取消对是因为React在开发过程中重新挂载组件，以验证你已经很好地实现了 cleanup 函数。
+- 现在编辑输入，输入abc。如果你做的足够快，你会看到 Schedule "ab" log 紧接着是 Cancel "ab" log 和 Schedule "abc" log。
+- React 总是会在执行下一次渲染的 Effect 之前，先执行 cleanup 函数清除上一次渲染的 Effect。
+- 这就是为什么即使您在 input 标签中快速输入，每次最多只调度一次 setTimeout 。编辑输入几次，观察控制台，感受一下Effects 是如何被清理的。
 
 
-Effects允许指定由呈现本身而不是由特定事件引起的副作用。
 
-每一次渲染都有它自己的 Props and State
+- 然后你再输入一些内容，并且立即点击 “Unmount the component”。
+- 你会注意到 cleanup 函数会清理最后一次渲染的 Effect。
+
+
+
+- 最后，你可以尝试编辑上面的组件，注释掉 cleanup 函数，因此 timeout 不会被取消。
+- 然后尝试快速的输入 abcde。你猜在三秒后发生什么？在 timeout 中的 console 是否会只打印五次 abcde 吗？最终的值并且输出五次
+- 实际上，在三秒之后你会看到控制台输出了 logs (`a`, `ab`, `abc`, `abcd`, and `abcde`)，而不是五次 abcde。
+- 每个 Effect 都会从与之对应的渲染中获取文本值。
+- 文本状态的改变并不重要：一个带有 text = ab 状态渲染中 Effect，所能获取的只能是 text = ab。
+- 换句话说 每次渲染的 Effect 是相互隔离的。
+- 如果您对这是如何工作的感到好奇，您可以阅读关于闭包的内容。
+
+
+
+### 总结：
+
+- 不想事件函数，Effect 是由渲染事件本身引起的而不是有一个特定的交互行为引起的。
+- Effect 可以让你的组件与外部系统进行同步操作
+- 默认情况下，Effect 会在每次渲染之后运行
+- 如果 Effect 所有的依赖值在两次渲染之间没有变换，则React 不会执行 Effect
+- 你不能选择你的依赖，依赖是由 Effect 中的代码确定的
+- 一个空的依赖数组对应于组件的 mount 阶段。也就是初次渲染到视图的时候
+- 当严格模式开启式，React 会 mount 两次组件，以便对你的组件进行压力测试
+- 如果你的 Effect 由于重复 mount 打破，你需要立即执行一个 cleanup 函数
+- React 会在下一次运行你的 Effect 之前和卸载时，调用 cleanup 函数，
+
+
+
+## 你或许不需要 Effect
+
+### 如何移除多于的 Effect
+
+- **你不需要为了 渲染在 Effect 中更新数据。**例如，我们假设你想在渲染之前过滤一个 list，你或许想当  list 改变的时候，通过写一个 Effect 去更新 state 变量。然而这是没用的。当你更新你的组件状态的时候，React 会首先调用你的组件函数去计算出需要渲染到视图上的内容，然后 React 将发生变化的部分 commit 到 DOM 上，更新视图，然后 React 才会运行你的 Effect。如果此时你在 Effect 内部更新 state 变量，React 会重启整个过程。为了避免不必要的渲染，在你的组件顶层转换所有的 数据。无论何时 state 或者 props 发生变化，代码都会自动重新运行。
+- **你不需要在 Effect 中处理用户事件**。例如，我们假设你想发送一个 POST 请求，并且当用户购买产品的时候可以展示一些通知信息，当 点击 购买按钮的时候，你想确切的知道发生了什么。当 Effect 运行时，你不知道用户做了什么(例如，用户点击了哪一个 button )。这就是为什么你必须在对应的事件处理函数中处理用户事件。
+
+为了帮助你获取一个正确的感知，让我们看一些相同概念的例子
+
+### 基于 props 或者 state 更新 state
+
+假设你的组件有两个状态变量：firstName 与 LastName。你想通过链接这两个 状态变量计算一个 fullName。而且，你想只要 firstName 与 LastName 发生变化，就去更新 fullName。你首先想到的可能是在添加一个 fullName 状态变量并且在 Effect 中去更新它。
+
+```jsx
+function Form() {
+  const [firstName, setFirstName] = useState('Taylor');
+  const [lastName, setLastName] = useState('Swift');
+
+  // 🔴 避免: 多于的 state 和不必要的 Effect
+  const [fullName, setFullName] = useState('');
+  useEffect(() => {
+    setFullName(firstName + ' ' + lastName);
+  }, [firstName, lastName]);
+  // ...
+}
+```
+
+这比必要的要复杂得多。它的效率也很低：它用一个过时的 fullName 值进行整个渲染传递，然后立即用更新的值重新渲染。移除状态变量和 Effect：
+
+```jsx
+function Form() {
+  const [firstName, setFirstName] = useState('Taylor');
+  const [lastName, setLastName] = useState('Swift');
+  // ✅ Good: calculated during rendering
+  const fullName = firstName + ' ' + lastName;
+  // ...
+}
+```
+
+**当有些值可以基于已存在的 props 或者 state 计算出来的时候，不要将其放在 state 中。而是在渲染时去计算它。**这会使你的代码更快(避免了连续更新)、更简单(移除多于的代码)、更少的潜在 bug(可以避免不同状态变量之间不同步所导致的错误)。如果这种方法给你带来了新的感受，用 React 的方式思考哪些值应该放到 state 中。
+
+### 使用 useMemo 缓存昂贵开销的计算
+
+该组件通过它 props 中的 todos 和 filter 属性，计算出 visibleTodos。你可能会想将结果存储在状态变量中，并在Effect中更新它:
+
+```jsx
+function TodoList({ todos, filter }) {
+  const [newTodo, setNewTodo] = useState('');
+
+  // 🔴 Avoid: redundant state and unnecessary Effect
+  const [visibleTodos, setVisibleTodos] = useState([]);
+  useEffect(() => {
+    setVisibleTodos(getFilteredTodos(todos, filter));
+  }, [todos, filter]);
+
+  // ...
+}
+```
+
+就像上面的例子一样，这两个都是不需要且不高效的。首先，移除 state & Effect：
+
+```jsx
+function TodoList({ todos, filter }) {
+  const [newTodo, setNewTodo] = useState('');
+  // ✅ This is fine if getFilteredTodos() is not slow.
+  const visibleTodos = getFilteredTodos(todos, filter);
+  // ...
+}
+```
+
+在许多情况下，这段代码是 OK 的，可以正常运行! 但是可能 getFilteredTodos() 会很慢，或者你有很多事情要做。在这种情况下，如果一些不相关的状态变量 (如newTodo) 发生了更改，你并不希望需要重新计算 getFilteredTodos()。
+
+你可以缓存(或" memoize ")一个昂贵的计算，通过包装它在useMemo钩子:
+
+```jsx
+import { useMemo, useState } from 'react';
+
+function TodoList({ todos, filter }) {
+  const [newTodo, setNewTodo] = useState('');
+  const visibleTodos = useMemo(() => {
+    // ✅ Does not re-run unless todos or filter change
+    return getFilteredTodos(todos, filter);
+  }, [todos, filter]);
+  // ...
+}
+```
+
+或者写成一行：
+
+```jsx
+import { useMemo, useState } from 'react';
+
+function TodoList({ todos, filter }) {
+  const [newTodo, setNewTodo] = useState('');
+  // ✅ Does not re-run getFilteredTodos() unless todos or filter change
+  const visibleTodos = useMemo(() => getFilteredTodos(todos, filter), [todos, filter]);
+  // ...
+}
+```
+
+这个操作意思是告诉 React：你不想重复运行 useMemo 包裹的函数，而是只有当 todos 或者 filter 发生变化的时候，才重新计算。
+
+React  会在初始渲染的时候记住 getFilteredTodos 方法返回的值。在下一次渲染时，会检测 todos 和 filter 是否发生变化。如果他们遇上一次相同，useMemo 将会返回上一次它缓存的结果。如果不同，React 会重新调用被包裹的函数并且再次存储最新的计算结果。
+
+你在 useMemo 中包装的函数会在渲染期间运行，因此这只适用于纯计算。
+
+### 当 prop 发生改变的时候重置所有 state
+
+ProfilePage 组件接受一个 userId 属性，当前页面包含一个评论输入框，并且你使用了一个 comment  作为状态变量，去存储输入框中的值。有一天，你会注意到一个问题：当你从一个简介切换到另一个时，comment 状态没有发生重置。结果，很容易不小心在错误的用户资料上发表评论。为了修复这个问题，你想只要 userId 发生变化的时候就清空 comment 状态变量：
+
+```jsx
+export default function ProfilePage({ userId }) {
+  const [comment, setComment] = useState('');
+
+  // 🔴 Avoid: Resetting state on prop change in an Effect
+  useEffect(() => {
+    setComment('');
+  }, [userId]);
+  // ...
+}
+```
+
+这个操作是无效的，因为 ProfilePage 和他的子组件在第一次渲染时会使用一个旧的值，并且再次渲染。并且他也是复杂的，因为你需要在 ProfilePage 每个具有类似状态的组件中执行词操作。例如如果 comment UI 是嵌套的，你或许想要清除嵌套的 comment 状态。
+
+然而，你可以通过给组件一个明确的 key 来告诉 React，每个用户的 profile 文件从概念上就是不同的。
+
+将你的组件拆分为两个组件，并且通过从外层组件向内层组件传递 key 属性：
+
+```jsx
+export default function ProfilePage({ userId }) {
+  return (
+    <Profile
+      userId={userId}
+      key={userId}
+    />
+  );
+}
+
+function Profile({ userId }) {
+  // ✅ This and any other state below will reset on key change automatically
+  const [comment, setComment] = useState('');
+  // ...
+}
+```
+
+正常情况下，当相同的组件渲染到相同的位置时，React 会维护组件状态。当选择将 userId 作为 key 传递给 Profile 组件时，你其实是在要求 React 将两个 Profile 作为不同的组件对待，因为两个不同的组件不会共享状态。只有 userId 发生变化，React 就会重置 DOM 并且重置 Profile 组件及其子组件状态。comment 状态也会在两个 profile 组件切换的时候自动清除。
+
+### 当 props 发生变化的时候调整 state
+
+有时你或许想在 props 发生变换的时候重置或者调整部分 state，而不是全部。
+
+List 组件接受一个 items 数组作为 prop。并且维持通过 selection 状态变量维持被选中的 item。
+
+你想要在 items 发生变化的时候重置 selection 初始值为 null：
+
+```jsx
+function List({ items }) {
+  const [isReverse, setIsReverse] = useState(false);
+  const [selection, setSelection] = useState(null);
+
+  // 🔴 Avoid: Adjusting state on prop change in an Effect
+  useEffect(() => {
+    setSelection(null);
+  }, [items]);
+  // ...
+}
+```
+
+这也不是好主意。每次 items 发生变化，List 组件和他的子组件将首先使用一个失效的 selection 值进行渲染。然后 React 会更新 DOM 并且运行 Effect。最终调用 setSelection(null) 触发 List 组件和他子组件的另一次渲染，重启整个渲染过程。
+
+你应该删除 Effect ，改为直接在渲染阶段调整状态：
+
+```jsx
+function List({ items }) {
+  const [isReverse, setIsReverse] = useState(false);
+  const [selection, setSelection] = useState(null);
+
+  // Better: Adjust the state while rendering
+  const [prevItems, setPrevItems] = useState(items);
+  if (items !== prevItems) {
+    setPrevItems(items);
+    setSelection(null);
+  }
+  // ...
+}
+```
+
+从上一次渲染中存储信息可能有些难以理解，但是他相较于在 Effect 中更新 state 更好。在上面例子中， setSelection 会在渲染期间直接调用。React 将在 List 退出后立即使用返回语句重新渲染它。到那时，React 还没有渲染 List 子节点或更新 DOM，因此这让 List 子元素跳过呈现陈旧的 selection 值。 
+
+当你在渲染阶段更新组件，React 丢弃返回的 JSX 并立即重试渲染。为了避免非常缓慢的级联重试，React 只允许你在渲染期间更新相同组件的状态。如果你在渲染期间更新了另一个组件的状态，你将看到报错。像 items !== prevItems 可以避免死循环。您可以像这样调整状态，但任何其他副作用(如更改DOM或设置超时)都应该保留在事件处理程序或 Effects 中，以保持组件的可预测性。
+
+**尽管此模式比Effect更有效，但大多数组件也不需要它。**无论如何，根据 props 或其他 state 调整状态都会使数据流更难以理解和调试。总是检查是否可以用一个 key 重置所有状态或在渲染期间计算所有内容。
+
+例如，不存储(和重置)所选 item，你可以存储所选 item ID:
+
+```jsx
+function List({ items }) {
+  const [isReverse, setIsReverse] = useState(false);
+  const [selectedId, setSelectedId] = useState(null);
+  // ✅ Best: Calculate everything during rendering
+  const selection = items.find(item => item.id === selectedId) ?? null;
+  // ...
+}
+```
+
+现在根本不需要“调整”状态了。如果具有选中 id 的 item 在数组中，则保持选中状态。如果不是，则在渲染期间由于没有与之匹配的 id 会返回 null，这个行为有点不同，但可以说它更好，因为现在对 items 的很多更改操作都保存了所选数据。
+
+### 在事件处理函数中分享逻辑
+
+假设你有一个带有两个按钮(Buy和Checkout)的产品页面，这两个按钮都允许你购买该产品。当用户将产品添加到购物车的时候，你想显示一个通知。在两个 按钮的点击事件处理函数中都添加 showNotification 方法的调用有些重复，因此你或许想将这块逻辑代码放到 Effect 中：
+
+```jsx
+function ProductPage({ product, addToCart }) {
+  // 🔴 Avoid: Event-specific logic inside an Effect
+  useEffect(() => {
+    if (product.isInCart) {
+      showNotification(`Added ${product.name} to the shopping cart!`);
+    }
+  }, [product]);
+
+  function handleBuyClick() {
+    addToCart(product);
+  }
+
+  function handleCheckoutClick() {
+    addToCart(product);
+    navigateTo('/checkout');
+  }
+  // ...
+}
+```
+
+这个 Effect 是不需要的。他很可能造成 bug。例如，我们假设你的应用在页面重新加载的时候已经缓存了购物车中的数据。如果你添加一个产品到购物车然后刷新页面，这提示信息会再次出现。上面的这种写法会让你的提示信息在每次刷新产品页面的时候都出现。因为 product.isInCart 在页面加载的时候已经是 true 了。因此 Effect 会再次调用 showNotification 方法。
+
+**当你不确定某些代码是该放到 Effect 中还是事件处理函数中时，你可以问问自己这些代码为什么运行。Effect 中仅仅适合运行那些需要将组件展示给用户的代码**。在上面的例子中，提示信息应该出现是因为用户按下了按钮，而不是因为页面显示了！因此删除 Effect 并且将需要分享的逻辑放到一个函数中，然后你在两个事件处理函数中调用即可。
+
+```jsx
+function ProductPage({ product, addToCart }) {
+  // ✅ Good: Event-specific logic is called from event handlers
+  function buyProduct() {
+    addToCart(product);
+    showNotification(`Added ${product.name} to the shopping cart!`);
+  }
+
+  function handleBuyClick() {
+    buyProduct();
+  }
+
+  function handleCheckoutClick() {
+    buyProduct();
+    navigateTo('/checkout');
+  }
+  // ...
+}
+```
+
+上面的代码移除了 Effect 并且修复了 bug。
+
+### 发送 POST 请求
+
+下面的 Form 组件会发送两个不同的 POST 请求。当组件挂载的时候会发送一个分析请求。当你填完表格并且点击 提交 按钮的时候，会向 /api/register 发送一个 POST  请求。
+
+```jsx
+function Form() {
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
+
+  // ✅ Good: This logic should run because the component was displayed
+  useEffect(() => {
+    post('/analytics/event', { eventName: 'visit_form' });
+  }, []);
+
+  // 🔴 Avoid: Event-specific logic inside an Effect
+  const [jsonToSubmit, setJsonToSubmit] = useState(null);
+  useEffect(() => {
+    if (jsonToSubmit !== null) {
+      post('/api/register', jsonToSubmit);
+    }
+  }, [jsonToSubmit]);
+
+  function handleSubmit(e) {
+    e.preventDefault();
+    setJsonToSubmit({ firstName, lastName });
+  }
+  // ...
+}
+```
+
+让我们在这个例子中应用与上面相同的规则。
+
+发送分析日志的请求仍应该放在 Effect 中。因为 Form 组件需要展示。
+
+然而，向 /api/register 接口发送 POST 请求的事件不是由 Form 组件展示引起的。你仅仅想在一个具体的时间发起 POST 请求：当用户点击 button 时。它仅应该由特定的交互事件引起。删除第二个 Effect 并将 POST 请求移动到事件函数中：
+
+```jsx
+function Form() {
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
+
+  // ✅ Good: This logic runs because the component was displayed
+  useEffect(() => {
+    post('/analytics/event', { eventName: 'visit_form' });
+  }, []);
+
+  function handleSubmit(e) {
+    e.preventDefault();
+    // ✅ Good: Event-specific logic is in the event handler
+    post('/api/register', { firstName, lastName });
+  }
+  // ...
+}
+```
+
+当你选择将代码逻辑放在事件处理函数中还是 Effect 中时，其实主要问题是你应该回答：从用户的视角看这是哪个类型的逻辑？如果这块代码逻辑是由用户交互引起的，则应该放到事件处理函数中。如果是由用户看到组件渲染到视图的过程引起的，则应该放到 Effect 中。
+
+### 链式操作
+
+有时你或许需要链式触发 Effect，每个 Effect 会基于其他 state 调整一部分 state。
+
+```jsx
+function Game() {
+  const [card, setCard] = useState(null);
+  const [goldCardCount, setGoldCardCount] = useState(0);
+  const [round, setRound] = useState(1);
+  const [isGameOver, setIsGameOver] = useState(false);
+
+  // 🔴 Avoid: Chains of Effects that adjust the state solely to trigger each other
+  useEffect(() => {
+    if (card !== null && card.gold) {
+      setGoldCardCount(c => c + 1);
+    }
+  }, [card]);
+
+  useEffect(() => {
+    if (goldCardCount > 3) {
+      setRound(r => r + 1)
+      setGoldCardCount(0);
+    }
+  }, [goldCardCount]);
+
+  useEffect(() => {
+    if (round > 5) {
+      setIsGameOver(true);
+    }
+  }, [round]);
+
+  useEffect(() => {
+    alert('Good game!');
+  }, [isGameOver]);
+
+  function handlePlaceCard(nextCard) {
+    if (isGameOver) {
+      throw Error('Game already ended.');
+    } else {
+      setCard(nextCard);
+    }
+  }
+
+  // ...
+```
+
+在上面的代码中有两个问题。
+
+第一个问题是它非常低效：Game 组件及其子组件必须在 Effect 链中的每个 setter 调用之间重新渲染。在上面的例子中，实际情况是这个样的：
+
+setCard → 渲染 → setGoldCardCount → 渲染 → setRount → 渲染 → setIsGameOver → 渲染
+
+整个组件树产生了三次不必要的渲染。
+
+即使它可能并不慢，但是随着代码的发展，你也会遇到编写的“链”不符合新的需求的情况。想象一下，你正在添加一种方法来逐步回顾游戏移动的历史记录。你可以通过将每个状态变量更新为过去的值来实现这一点。然而，将卡片状态设置为过去的值将再次触发Effect链并更改正在显示的数据。这样的代码通常是僵硬而脆弱的。
+
+这种情况下，最好是在渲染期间计算你所需要的状态，并且在事件函数中重新调整 state。
+
+```jsx
+function Game() {
+  const [card, setCard] = useState(null);
+  const [goldCardCount, setGoldCardCount] = useState(0);
+  const [round, setRound] = useState(1);
+
+  // ✅ Calculate what you can during rendering
+  const isGameOver = round > 5;
+
+  function handlePlaceCard(nextCard) {
+    if (isGameOver) {
+      throw Error('Game already ended.');
+    }
+
+    // ✅ Calculate all the next state in the event handler
+    setCard(nextCard);
+    if (nextCard.gold) {
+      if (goldCardCount <= 3) {
+        setGoldCardCount(goldCardCount + 1);
+      } else {
+        setGoldCardCount(0);
+        setRound(round + 1);
+        if (round === 5) {
+          alert('Good game!');
+        }
+      }
+    }
+  }
+
+  // ...
+```
+
+上面的代码就高效很多。此外，如果你实现了一种查看游戏历史的方法，那么现在你就可以将每个状态变量设置为过去的移动，而不必触发调整每个其他值的 Effect 链。如果你需要在多个事件函数中复用逻辑，你可以将复用逻辑再单独提取为一个函数，然后调用它即可。
+
+技术在事件函数内部，状态的表现更像快照。例如，即使你调用了 setRound(round + 1) 之后，round 的值仍然是用户点击按钮时的状态。如果你需要为计算操作使用新值，手动定义它，比如 `const nextRound = round + 1`。
+
+在某些情况下，当不能直接在事件处理程序中计算下一个状态时。例如，想象一个具有多个下拉列表的表单，其中下一个下拉列表的选项依赖于前一个下拉列表的选择值。然后，选择 Effects 链获取数据是合适的，因为您需要与网络进行同步。
+
+### 初始化应用
+
+当 app 加载的时候，有些逻辑应该仅运行一次。你获取会将其放到组件的顶层 Effect 中：
+
+```jsx
+function App() {
+  // 🔴 Avoid: Effects with logic that should only ever run once
+  useEffect(() => {
+    loadDataFromLocalStorage();
+    checkAuthToken();
+  }, []);
+  // ...
+}
+```
+
+但是，您很快就会发现它在开发中运行了两次。这可能会导致一些问题——例如，可能会使*身份验证令牌*失效，因为该函数没有设计为被调用两次。一般来说，组件应该具有重新挂载的弹性。这包括顶层 App 组件。尽管在实际生产中可能永远不会重新安装，但在所有组件中遵循相同的约束可以更容易地移动和重用代码。如果某些逻辑必须在每次应用加载时运行一次，而不是每次组件挂载时运行一次，你可以添加一个顶层变量来跟踪它是否已经执行，并始终跳过重新运行它:
+
+```jsx
+let didInit = false;
+
+function App() {
+  useEffect(() => {
+    if (!didInit) {
+      didInit = true;
+      // ✅ Only runs once per app load
+      loadDataFromLocalStorage();
+      checkAuthToken();
+    }
+  }, []);
+  // ...
+}
+```
+
+你也可以在 app 渲染之前、模块初始化时运行它：
+
+```jsx
+if (typeof window !== 'undefined') { // Check if we're running in the browser.
+   // ✅ Only runs once per app load
+  checkAuthToken();
+  loadDataFromLocalStorage();
+}
+
+function App() {
+  // ...
+}
+```
+
+在导入组件时，顶层的代码只运行一次——即使它最终没有被渲染。为了避免在导入任意组件时出现变慢或令人惊讶的行为，不要过度使用此模式。将整个应用程序的初始化逻辑保留到根组件模块(如 App.js )或应用程序的入口模块中。
+
+### 当 state 变化的时候通知父组件
+
+假设你正在编写一个 Toggle 组件，其中有一个内部的 isOn 状态，可以是 true 也可以是 false。切换它有几种不同的方法(通过单击或拖动)。你想要在 Toggle 内部状态改变时通知父组件，所以你给组件提供可一个 onChange 事件，并在 Effect 中调用它: 
+
+```jsx
+function Toggle({ onChange }) {
+  const [isOn, setIsOn] = useState(false);
+
+  // 🔴 Avoid: The onChange handler runs too late
+  useEffect(() => {
+    onChange(isOn);
+  }, [isOn, onChange])
+
+  function handleClick() {
+    setIsOn(!isOn);
+  }
+
+  function handleDragEnd(e) {
+    if (isCloserToRightEdge(e)) {
+      setIsOn(true);
+    } else {
+      setIsOn(false);
+    }
+  }
+
+  // ...
+}
+```
+
+就像之前一样，这并不理想。Toggle 首先会更新它的状态，React更新视图。然后 React 运行 Effect，它调用从父组件传递过来的onChange 函数。现在父组件将更新自己的状态，开始进行下一轮渲染。但是我们需要最好是一次性完成所有工作。
+
+删除 Effect，并在同一个事件处理程序中更新两个组件的状态:
+
+```jsx
+function Toggle({ onChange }) {
+  const [isOn, setIsOn] = useState(false);
+
+  function updateToggle(nextIsOn) {
+    // ✅ Good: Perform all updates during the event that caused them
+    setIsOn(nextIsOn);
+    onChange(nextIsOn);
+  }
+
+  function handleClick() {
+    updateToggle(!isOn);
+  }
+
+  function handleDragEnd(e) {
+    if (isCloserToRightEdge(e)) {
+      updateToggle(true);
+    } else {
+      updateToggle(false);
+    }
+  }
+
+  // ...
+}
+
+```
+
+使用这种方法，Toggle 组件及其父组件都会在事件中更新它们的状态。React 会将来自不同组件的一起进行 **批量更新**，因此结果将只有一个渲染。
+
+你也可以完全删除状态，而从父组件接收 isOn:
+
+```jsx
+// ✅ Also good: the component is fully controlled by its parent
+function Toggle({ isOn, onChange }) {
+  function handleClick() {
+    onChange(!isOn);
+  }
+
+  function handleDragEnd(e) {
+    if (isCloserToRightEdge(e)) {
+      onChange(true);
+    } else {
+      onChange(false);
+    }
+  }
+
+  // ...
+}
+```
+
+“状态提升”可以让父组件通过切换自身的状态来实现对 Toggle 的完全控制。这意味着父组件将必须包含更多的逻辑，但需要担心的总体状态会更少。每当你试图保持两个不同的状态变量同步时，这是一个信号，表明你应该尝试向上进行**状态提升**啦!
+
+### 将数据传递给父组件
+
+在 Child 组件中请求数据，然后在 Effect 中将数据传递给父组件：
+
+```jsx
+function Parent() {
+  const [data, setData] = useState(null);
+  // ...
+  return <Child onFetched={setData} />;
+}
+
+function Child({ onFetched }) {
+  const data = useSomeAPI();
+  // 🔴 Avoid: Passing data to the parent in an Effect
+  useEffect(() => {
+    if (data) {
+      onFetched(data);
+    }
+  }, [onFetched, data]);
+  // ...
+}
+```
+
+在 React 中，数据通常从父组件流向子组件。当你看到视图上出现错误时，你可以沿着组件链向上查找信息的来源，直到找到哪个组件传递了错误的 props 或具有错误的 state。当子组件在 Effects 中更新它们的父组件的状态时，数据流变得非常难以跟踪。因为子组件和父组件都需要相同的数据，所以让父组件获取这些数据，并将其传递给子组件:
+
+```jsx
+function Parent() {
+  const data = useSomeAPI();
+  // ...
+  // ✅ Good: Passing data down to the child
+  return <Child data={data} />;
+}
+
+function Child({ data }) {
+  // ...
+}
+```
+
+这更简单，并且保持数据流的可预测性:数据从父节点向下流到子节点。
+
+### useSyncExternalStore：订阅外部存储
+
+有时，组件可能需要订阅 React 状态之外的一些数据。这些数据可以来自第三方库或内置的浏览器 API。由于这些数据可以在 React 不知道的情况下发生变化，所以需要手动让组件订阅到它。这通常是通过 Effect 来完成的，例如:
+
+```jsx
+function useOnlineStatus() {
+  // Not ideal: Manual store subscription in an Effect
+  const [isOnline, setIsOnline] = useState(true);
+  useEffect(() => {
+    function updateState() {
+      setIsOnline(navigator.onLine);
+    }
+
+    updateState();
+
+    window.addEventListener('online', updateState);
+    window.addEventListener('offline', updateState);
+    return () => {
+      window.removeEventListener('online', updateState);
+      window.removeEventListener('offline', updateState);
+    };
+  }, []);
+  return isOnline;
+}
+
+function ChatIndicator() {
+  const isOnline = useOnlineStatus();
+  // ...
+}
+
+```
+
+在上面代码示例中，组件订阅外部数据存储(在本例中是浏览器导航器，浏览器 navigator.onLine API)。因为这个 API 在服务器上不存在(所以它不能用来生成初始的 HTML )，所以初始状态被设置为 true。只要该数据存储的值在浏览器中发生变化，组件就会更新其状态。
+
+虽然通常使用 Effects 来实现这一点，但 React 提供了一个专门用来订阅外部存储的 Hook：useSyncExternalStore，遇到上面这种情况都首选 useSyncExternalStore。删除 Effect 并将其替换为调用 useSyncExternalStore:
+
+```jsx
+function subscribe(callback) {
+  window.addEventListener('online', callback);
+  window.addEventListener('offline', callback);
+  return () => {
+    window.removeEventListener('online', callback);
+    window.removeEventListener('offline', callback);
+  };
+}
+
+function useOnlineStatus() {
+  // ✅ Good: Subscribing to an external store with a built-in Hook
+  return useSyncExternalStore(
+    subscribe, // React won't resubscribe for as long as you pass the same function
+    () => navigator.onLine, // How to get the value on the client
+    () => true // How to get the value on the server
+  );
+}
+
+function ChatIndicator() {
+  const isOnline = useOnlineStatus();
+  // ...
+}
+```
+
+这种方法比手动将可变数据同步到带有 Effect 的 React 状态更不容易出错。通常，你将编写像上面的 useOnlineStatus() 这样的自定义Hook，这样您就不需要在各个组件中重复此代码。 [阅读更多关于订阅React组件的外部存储的信息。](https://beta.reactjs.org/apis/react/useSyncExternalStore)
+
+### 请求数据
+
+许多 app 使用 Effects 去进行数据请求。编写这样的数据请求 Effect 是很常见的:
+
+```jsx
+function SearchResults({ query }) {
+  const [results, setResults] = useState([]);
+  const [page, setPage] = useState(1);
+
+  useEffect(() => {
+    // 🔴 避免: 避免进行没有 cleanup 逻辑的数据请求
+    fetchResults(query, page).then(json => {
+      setResults(json);
+    });
+  }, [query, page]);
+
+  function handleNextPageClick() {
+    setPage(page + 1);
+  }
+  // ...
+}
+
+```
+
+你不需要将 fetch 移动到事件处理函数中。
+
+这或许与先前需要将代码放到事件处理函数中的例子是相互矛盾的。然而考虑到这部分逻辑主要是去发起数据请求而不是输入事件。搜索输入通常是从 URL 预先填充的，用户可以在不接触输入的情况下向前和向后导航。它是从 页面还是 query 中获取并不重要。当组件可见时，你希望根据当前页面和查询将结果与来自网络的数据保持同步。这就是为什么它是一个效应。
+
+然而上面的代码有个 bug。设想你很快的输入 "hello"。然后查询将从 "h" 到 "he"、"hel"、"hell" 最终到" hello"进行变换。这将开始单独的请求，但不能保证响应将以何种顺序到达。例如，“hello” 的响应可能会在 "hello" 的响应之后到达。因为它最后会调用 setResults()，这将会展示一个错误的搜索结果。这被称为 **竞态**：两个请求之间互相竞争，并且会产生一个你无法预期的顺序。
+
+**为了修复竞态，你需要添加一个 cleanup 函数以忽视过期的响应。**
+
+```jsx
+function SearchResults({ query }) {
+  const [results, setResults] = useState([]);
+  const [page, setPage] = useState(1);
+  useEffect(() => {
+    let ignore = false;
+    fetchResults(query, page).then(json => {
+      if (!ignore) {
+        setResults(json);
+      }
+    });
+    return () => {
+      ignore = true;
+    };
+  }, [query, page]);
+
+  function handleNextPageClick() {
+    setPage(page + 1);
+  }
+  // ...
+}
+```
+
+这确保了在 Effect 获取数据时，除了最后一个请求之外的所有响应都将被忽略。
+
+处理竞态条件并不是实现数据获取的唯一困难。可能还需要考虑如何缓存的响应(以便用户点击回退时，可以立即看到上一个视图而不是 spinner 状态)，如何获取服务器上的数据(这样初始 server-rendered HTML 包含所获取的内容而不是转轮)，以及如何避免网络瀑布(这样一个子组件，需要获取数据不必等待每个父组件上面完成抓取数据之前可以开始)。**这些问题适用于任何 UI 库，而不仅仅是React。解决这些问题并非易事，这就是为什么现代框架提供了比直接在组件中写入 effect 更有效的内置数据获取机制。**
+
+如果你不使用框架(也不想构建自己的框架)，但想让从 Effects 获取数据更符合工程学，考虑将你的获取逻辑提取到自定义Hook中，就像这个例子:
+
+```jsx
+function SearchResults({ query }) {
+  const [page, setPage] = useState(1);
+  const params = new URLSearchParams({ query, page });
+  const results = useData(`/api/search?${params}`);
+
+  function handleNextPageClick() {
+    setPage(page + 1);
+  }
+  // ...
+}
+
+function useData(url) {
+  const [data, setData] = useState(null);
+  useEffect(() => {
+    let ignore = false;
+    fetch(url)
+      .then(response => response.json())
+      .then(json => {
+        if (!ignore) {
+          setData(json);
+        }
+      });
+    return () => {
+      ignore = true;
+    };
+  }, [url]);
+  return data;
+}
+```
+
+
+
+你可能还想添加一些逻辑，用于错误处理和跟踪内容是否正在加载。你可以自己构建这样的Hook，也可以使用 React 生态系统中已有的众多解决方案之一。尽管仅这一点并不像使用框架内置的数据获取机制那么有效，但是将数据获取逻辑移到自定义 Hook 中将使以后采用高效的数据获取策略更加容易。
+
+一般来说，当你不得不编写 Effects 时，请留意何时可以使用更具有声明性和更有目的构建的 API(如上面的useData)将功能提取到自定义 Hook 中。在组件中使用的原始 useEffect 调用越少，维护应用程序就越容易。
+
+
+
+
 
 ### 每一次渲染都有它自己的事件处理函数
 
