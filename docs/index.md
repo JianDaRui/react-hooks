@@ -2101,7 +2101,7 @@ function SearchResults({ query }) {
 
 然而上面的代码有个 bug。设想你很快的输入 "hello"。然后查询将从 "h" 到 "he"、"hel"、"hell" 最终到" hello"进行变换。这将开始单独的请求，但不能保证响应将以何种顺序到达。例如，“hello” 的响应可能会在 "hello" 的响应之后到达。因为它最后会调用 setResults()，这将会展示一个错误的搜索结果。这被称为 **竞态**：两个请求之间互相竞争，并且会产生一个你无法预期的顺序。
 
-**为了修复竞态，你需要添加一个 cleanup 函数以忽视过期的响应。**
+**为了解决竞态问题，你需要添加一个 cleanup 函数以忽视过期的响应。**
 
 ```jsx
 function SearchResults({ query }) {
@@ -2163,15 +2163,211 @@ function useData(url) {
 }
 ```
 
-
-
 你可能还想添加一些逻辑，用于错误处理和跟踪内容是否正在加载。你可以自己构建这样的Hook，也可以使用 React 生态系统中已有的众多解决方案之一。尽管仅这一点并不像使用框架内置的数据获取机制那么有效，但是将数据获取逻辑移到自定义 Hook 中将使以后采用高效的数据获取策略更加容易。
 
 一般来说，当你不得不编写 Effects 时，请留意何时可以使用更具有声明性和更有目的构建的 API(如上面的useData)将功能提取到自定义 Hook 中。在组件中使用的原始 useEffect 调用越少，维护应用程序就越容易。
 
+## Effects 中的生命周期
+
+Effects 的生命周期与组件不同。组件可以挂载、更新或卸载。而一个 Effect 只能做两件事：开始同步某些东西，然后停止同步它。如果你的 Effect 依赖于随时间变化的 props 和 state，那么这个循环可能会发生多次。React 提供了一个 linter 规则来检查是否正确指定了Effect 的依赖项。这将使你的 Effect 与最新的 props 和 state 同步。
+
+你会学到的
+
+- Effect 的生命周期与组件的生命周期有何不同
+- 如何孤立地看待每个独立的 Effect
+- 何时需要重新同步 Effect，以及原因
+- 如何确定 Effect 的依赖关系
+- 一个响应式的值意味着什么
+- 空的依赖数组意味着什么
+- React 如何用 linter 验证你的依赖项是正确的
+- 当你不同意 linter 的意见时该怎么办?
+
+### 一个 Effect 的生命周期
+
+每个 React 组件都会经历相同的生命周期：
+
+- 挂载：将组件渲染到视图上
+- 更新：当组件接受新的 props 或者 state 时，进行更新操作。通常是为了响应交互事件
+- 卸载：当组件从视图上移除时
+
+这是一个非常好的思考方式，但是并不是 Effect 的思考方式。一次，请独立的思考每个 Effect 在你组件中的生命周期。Effect 通常用于描述如何同步外部系统到当前的 props 或 state。随着你代码的变化，这种同步操作需要或多或少的发生。
+
+为了说明这一点，设想下将组件连接到聊天服务器的效果:
+
+```jsx
+const serverUrl = 'https://localhost:1234';
+
+function ChatRoom({ roomId }) {
+  useEffect(() => {
+    const connection = createConnection(serverUrl, roomId);
+    connection.connect();
+    return () => {
+      connection.disconnect();
+    };
+  }, [roomId]);
+  // ...
+}
+```
+
+你的 Effect 的主体部分明确指出了如何**开始同步**：
+
+```jsx
+    // ...
+    const connection = createConnection(serverUrl, roomId);
+    connection.connect();
+    return () => {
+      connection.disconnect();
+    };
+    // ...
+```
+
+通过 Effect 返回的 cleanup 函数明确指出了如何**停止同步**：
+
+```jsx
+    // ...
+    const connection = createConnection(serverUrl, roomId);
+    connection.connect();
+    return () => {
+      connection.disconnect();
+    };
+    // ...
+```
+
+凭直觉，你可能认为 React 会在组件挂载时开始同步，在组件卸载时停止同步。然而，事情并没有结束！有时，还可能需要在组件保持挂载的情况下进行**多次开始和停止同步**。
+
+接下来让我们一起看看为什么这是必要的，它何时发生，以及如何控制这种行为。
+
+> **注意**
+>
+> 有的 Effect 没有返回 cleanup 函数。通常情况下，你认为需要返回，但是如果你没有返回的情况下，React 的表现行为就像你返回了一个什么都不做的空的 cleanup 函数。
+
+### 为什么同步可能需要发生多次？
+
+设想下 ChatRoom 组件接受一个 roomId 的 props，它由用户通过点击 dropdown 产生。我们假设初始时用户选择的是 "general" 作为 roomId。app 显示 "general" 聊天室：
+
+```jsx
+const serverUrl = 'https://localhost:1234';
+
+function ChatRoom({ roomId /* "general" */ }) {
+  // ...
+  return <h1>Welcome to the {roomId} room!</h1>;
+}
+```
+
+在页面被渲染后，React 会运行 Effect 进行状态同步。链接 "general" 房间：
+
+```jsx
+function ChatRoom({ roomId /* "general" */ }) {
+  useEffect(() => {
+    const connection = createConnection(serverUrl, roomId); // Connects to the "general" room
+    connection.connect();
+    return () => {
+      connection.disconnect(); // Disconnects from the "general" room
+    };
+  }, [roomId]);
+  // ...
+```
+
+到目前为止，一切都表现的符合预期。
+
+之后，用户在下拉框中选择了另一个："travel"。React 首先会更新 UI。
+
+```jsx
+function ChatRoom({ roomId /* "travel" */ }) {
+  // ...
+  return <h1>Welcome to the {roomId} room!</h1>;
+}
+```
+
+你可以暂停下，思考接下来发生了什么。用户在 UI 中看到选择的 "travel" 聊天室。然而，上次运行的 Effect 仍然 “geneal” 房间进行着链接。props 中的 roomId 已经改变了，所以无论你的 Effect 在那时做了什么(连接到 “general” 房间)都不再与现在的 UI 匹配了。
+
+此时，你希望 React 做两件事:
+
+- 停止与旧的 roomId 同步(断开与 “general” 房间的连接)
+- 开始与新的 roomId 同步(连接到“travel”房间)
+
+幸运的是，你已经学会如何通过 React 完成这两件事！用 Effect 的主体指定如何开始同步，用 cleanup 函数指定如何停止同步。React 现在需要做的就是以正确的顺序调用它们，并使用正确的 props 和 state。让我们看看这到底是怎么发生的。
+
+### React 如何重复同步你的 Effect
+
+回想一下，你的 ChatRoom 组件已经收到了新的 roomId 。以前是 “general”，现在是 “travel”。React 需要重新同步你的 Effect 以重新连接到不同的房间。
+
+为了停止同步，React 会调用 Effect 在连接到 “general” 房间后返回的 cleanup 函数。由于 roomId 为 "general"，cleanup 函数需要断开与 "general" 房间的连接:
+
+```jsx
+function ChatRoom({ roomId /* "general" */ }) {
+  useEffect(() => {
+    const connection = createConnection(serverUrl, roomId); // Connects to the "general" room
+    connection.connect();
+    return () => {
+      connection.disconnect(); // Disconnects from the "general" room
+    };
+    // ...
+```
+
+然后 React 将运行你在渲染期间提供的 Effect。这一次，roomId 是 "travel"，所以它将开始同步到 "travel" 聊天室(直到它的 cleanup 函数最终也被调用):
+
+```jsx
+function ChatRoom({ roomId /* "travel" */ }) {
+  useEffect(() => {
+    const connection = createConnection(serverUrl, roomId); // Connects to the "travel" room
+    connection.connect();
+    // ...
+```
+
+得益于此，你现在连接到用户在 UI 中选择的同一个房间。灾难避免了!
+
+每次在组件使用不同的 roomId 重新渲染后，你的 Effect 将重新同步。例如，假设用户将 roomId 从 “travel” 更改为 “music”。React 将再次通过调用它的 cleanup 函数(断开你与 “travel” 房间的连接)来停止同步你的 Effect。然后，它将通过运行新的 roomId 属性(将你连接到“music”房间)来再次开始同步。
+
+最后，当用户切换到另一个视图时，聊天室会卸载。现在完全没有必要保持联系了。React 将停止最后一次同步你的 Effect，并断开你与“music” 聊天室的连接。
+
+### 从 Effect 的角度思考
+
+让我们从 CharRoom 组件的角度来回顾一下发生的一切:
+
+- CharRoom 挂载时 roomId 设置为 "general"
+- roomId 设置为 “travel”，CharRoom 更新
+- roomId 设置为“music”，CharRoom 更新
+- 切换视图，CharRoom 卸载
+
+在组件生命周期的每一个点上，你的 Effect 做了不同的事情:
+
+- Effect 连接到 “general” 房间
+- Effect 与 “general” 房间断开连接，与 “general” 房间连接
+- Effect 从 “travel” 房间断开，连接到 “music” 房间
+- Effect 与 “music” 室断开连接
+
+现在让我们从 Effect 本身的角度来思考发生了什么:
+
+```jsx
+  useEffect(() => {
+    // Effect 链接到指定的 roomId
+    const connection = createConnection(serverUrl, roomId);
+    connection.connect();
+    return () => {
+      // ...断开连接
+      connection.disconnect();
+    };
+  }, [roomId]);
+```
+
+这段代码的结构可能会启发你， 这一系列操作发生了什么事情:
+
+- Effect 连接到 “general” 房间(直到它断开)
+- Effect 连接到 “travel” 房间(直到它断开)
+- Effect 连接到 “music” 房间(直到它断开)
+
+以前，你是从组件的角度考虑问题的。当你从组件的角度看时，很容易把 Effects 看作是在特定时间触发的“回调”或“生命周期事件”，比如“渲染之后”或“卸载之前”。这种思维方式很快就会变得复杂，所以最好避免。
+
+**相反，每次只关注一个启动/停止周期。无论组件是挂载、更新还是卸载，都不应该如此。您所需要做的就是描述如何启动同步和如何停止同步。如果你做得好，你的 Effect 会根据需要多次启动和停止。**
+
+这可能会提醒你，在编写创建 JSX 的渲染逻辑时，不要考虑组件是在挂载还是在更新。你描述应该出现在屏幕上的内容，然后 React 计算剩下的内容。
+
+### React 如何验证你的 Effect 可以重新同步
 
 
 
+多个 Effects 依赖有部分相同 如何处理
 
 ### 每一次渲染都有它自己的事件处理函数
 
