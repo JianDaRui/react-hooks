@@ -2365,6 +2365,68 @@ function ChatRoom({ roomId /* "travel" */ }) {
 
 ### React 如何验证你的 Effect 可以重新同步
 
+你可能想知道 React 是如何知道你的 Effect 需要在 roomId 更改后重新同步的。这是因为你告诉 React，这个 Effect的代码依赖于roomId，把它包含在依赖列表中:
+
+```jsx
+function ChatRoom({ roomId }) { // The roomId prop may change over time
+  useEffect(() => {
+    const connection = createConnection(serverUrl, roomId); // This Effect reads roomId 
+    connection.connect();
+    return () => {
+      connection.disconnect();
+    };
+  }, [roomId]); // So you tell React that this Effect "depends on" roomId
+  // ...
+```
+
+下面是它的工作原理:
+
+- roomId 是一个 prop，这意味着它可以随着产生变化。
+-  Effect 读取了roomId (因此它的执行逻辑取决于稍后可能产生变化的值)。
+- 这就是为什么你将它指定为 Effect 的依赖项(以便当 roomId 发生变化时它会重新同步)。
+
+每次在组件重新渲染之后，React 都会检查你传递的依赖项数组。如果数组中的任何值与之前渲染时传递的同一个依赖项的值不同，React 将重新同步你的 Effect。例如，如果你在初始渲染中传递 ["general"]，然后在下次渲染中传递 ["travel"]， Reac t会比较"general"和"travel"。这是两个不同的值(使用 Object.is 进行比较)，因此 React 将重新同步你的 Effect。另一方面，如果你的组件重新渲染但 roomId 没有更改，则 Effect 将仍会与相同的房间保持链接状态。
+
+### 每个 Effect 的同步过程都是独立
+
+不要向 Effect 中添加不相关的逻辑，因为该逻辑需要与你已经编写的 Effect 同时运行。例如，假设您想在用户访问房间时发送一个分析事件。你已经有了一个依赖于 roomId 的 Effect，所以你可能会想在这里添加分析调用:
+
+```jsx
+function ChatRoom({ roomId }) {
+  useEffect(() => {
+    logVisit(roomId);
+    const connection = createConnection(serverUrl, roomId);
+    connection.connect();
+    return () => {
+      connection.disconnect();
+    };
+  }, [roomId]);
+  // ...
+}
+```
+
+但是，假设你稍后需要向这个 Effect 再添加一个依赖项，需要重新建立连接。如果此 Effect 重新同步，你不希望它为同一房间调用 logVisit(roomId)。记录访问与连接是一个独立的过程。这就是为什么它们应该被写成两个独立的 Effect:
+
+```jsx
+function ChatRoom({ roomId }) {
+  useEffect(() => {
+    logVisit(roomId);
+  }, [roomId]);
+
+  useEffect(() => {
+    const connection = createConnection(serverUrl, roomId);
+    // ...
+  }, [roomId]);
+  // ...
+}
+```
+
+**代码中的每个 Effect 都应该代表一个独立的同步过程。**
+
+在上面的例子中，删除一个 Effect 不会破坏另一个 Effect 的逻辑。这意味着它们同步不同的内容，因此将它们分开是讲得通的。另一方面，如果你将一个内聚的逻辑片段分割成单独的 Effects，代码可能看起来“更干净”，但维护起来会更困难。这就是为什么你应该考虑同步过程是相同的还是独立的，而不是代码是否看起来更干净。
+
+### Effects 对响应式的值进行响应
+
 
 
 多个 Effects 依赖有部分相同 如何处理
