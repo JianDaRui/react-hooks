@@ -13,6 +13,8 @@
   - Class 组件的 this 问题
 - 函数组件中没有 this
 
+# 状态管理
+
 ## useState Hook
 
 ### 初级
@@ -1055,7 +1057,7 @@ export default function Page() {
 
 
 
-## 逃生舱
+# 逃生舱
 
 ## useRef
 
