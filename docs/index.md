@@ -32,7 +32,7 @@ useState hook 主要用来在 function component 组件中进行状态管理。�
 使用公式：
 
 ```js
-const [state, setState] = useState(initState)
+const [state, setState] = use/State(initState)
 ```
 
 示例：
