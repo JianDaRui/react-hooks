@@ -1,17 +1,23 @@
 # React Hooks —— 状态管理篇
 
+![](reacthooks.webp)
+
 ## 前言
+
+最近项目正在迁移到 `React` 技术栈，使用的是 `React  Hook`。在实际使用过程中，心中多多少少有这样或那样的疑惑，于是学习了相关资料和文档。并总结成了本篇文章，本文内容多来源与英文版 `React beta` 文档，我按自己的理解将其翻译了过来，如有不正确的地方，还望各位指正。
+
+下面进入正题。
 
 ## useState Hook
 
-在聊 `useState` 钩子之前我们说说 **`state`** 。至 `React` 诞生以来，组件化开发的思想可以让我们像搭积木一样来搭建整个页面，并且可以通过组件抽离，实现组件 UI & 逻辑的复用。
+在聊 `useState` 钩子之前我们说说 **`state`** 。至 `React` 诞生以来，组件化开发的思想可以让我们像搭积木一样来搭建整个页面，并且可以通过组件抽离，实现组件 `UI` & 逻辑的复用。
 
 在开发过程中，我们由原来的**命令式编程**方式转为了**声明式编程**。这里举一个比较简单的场景可以让你明白这两种方式的区别，假设有一个表单填写的需求，需要用户回答一个问题，但是有些交互需要处理：
 
-- 当用户在 input 标签中输入文本时， `Submit` 按钮由 `disable` 不可点击的状态变为 `enabled` 可点击状态。
+- 当用户在 `input` 标签中输入文本时， `Submit` 按钮由 `disable` 不可点击的状态变为 `enabled` 可点击状态。
 - 当用户点击  `Submit` 按钮后，表单和按钮都变为 `disable` 状态，并且展示一个 `loading` 的状态。
-- 如果 HTTP 请求成功，则隐藏表单，并且显示 ”Thank you“ 消息。
-- 如果 HTTP 请求失败，则展示错误提示信息，并且表单再次变为 `enabled` 可以编辑的状态
+- 如果 `HTTP` 请求成功，则隐藏表单，并且显示 ”Thank you“ 消息。
+- 如果 `HTTP` 请求失败，则显示错误提示信息，并且表单再次变为 `enabled` 可以编辑的状态
 
 如果你使用**命令式编程**的方式，你的代码可能会是下面的样子：
 
@@ -84,13 +90,13 @@ form.onsubmit = handleFormSubmit;
 textarea.oninput = handleTextareaChange;
 ```
 
-可以看到你必须通过代码来描述清楚每个交互操作后的具体逻辑，根据 **交互场景去操作 DOM**，来实现视图的切换响应。
+可以看到使用命令式编程的方式时，你必须通过代码来描述清楚每个交互操作后的具体逻辑，根据 **交互场景去操作 DOM**，来实现视图的切换响应。
 
 这就好比你打了一辆出租车，但是司机(**`JS`**)并不知道目的地在哪，你必须在每个交叉路口告诉司机该如何驾驶。
 
 ![](i_imperative-ui-programming.png)
 
-但是如果使用 `React` 的话，则不必这么复杂。在 `React` 中你不需要去操作 DOM 去改变 UI 的 `enable、disable、show` 或者 `hidden` 效果。你只需要将你想要展示的效果告诉  `React`  就好。 `React`  会通过计算更新 UI。如果使用**声明式编程**的方式，你的代码最终可能是这样的：
+但是如果使用 `React` 的话，则不必这么复杂。在 `React` 中你不需要去操作 `DOM` 去改变 `UI` 的 `enable、disable、show` 或者 `hidden` 效果。你只需要将你想要展示的效果告诉  `React`  就好。 `React`  会通过计算更新 UI。如果使用**声明式编程**的方式，你的代码最终可能是这样的：
 
 ```jsx
 import { useState } from 'react';
@@ -107,7 +113,7 @@ export default function Form() {
   if (status === 'success') {
     return <h1>That's right!</h1>
   }
-
+	// 处理提交
   async function handleSubmit(e) {
     e.preventDefault();
     setStatus('submitting');
@@ -169,22 +175,22 @@ function submitForm(answer) {
 
 ```
 
+上面的代码使用**声明式编程**方式实现，代码量可能与 前者相差无几，但是可以看到，声明式编程少了一些 DOM 操作，多了一些状态判断。
+
 这就好比你打了辆出租车，你仅需要告诉司机(**`React`**)目的地即可，而不是告诉司机该如何拐弯、如何行进。司机的工作就是将你载到目的地，司机可能还知道一些近道。
 
 ![](i_declarative-ui-programming.png)
 
 通过上面的代码案例，你会发现，你编程的**关注点**在发生变化：
 
-- 在命令式编程的方式中，你关注的是如何在交互中通过**操作 `DOM`** 的方式，达到视图切换的效果
-- 在声明式编程的方式中，你关注的是如何通过**维护状态变量**的方式，达到视图切换的效果
+- 在**命令式编程**的方式中，你关注的是如何在交互中通过**操作 `DOM`** 的方式，达到视图切换的效果
+- 在**声明式编程**的方式中，你关注的是如何通过**维护状态变量**的方式，达到视图切换的效果
 
-**在 `React` 中，我们将组件需要缓存下来的用于维护组件的状态的变量，比如：输入框中的文本 `answer`、请求状态 `error`、响应状态 `status`**，称为 `state`。`state` 会存在于 `React` 组件的整个生命周期内。
+**在 `React` 中，我们将组件需要缓存下来的用于维护组件的展示状态的变量，比如：输入框中的文本 `answer`、请求状态 `error`、响应状态 `status`**，称为 `state`（状态）。`state` 会存在于 `React` 组件的整个生命周期内。
 
-通过上面简单的介绍，加下来我们具体聊聊如何使用 `useState`
+通过上面简单的介绍，接下来我们具体聊聊如何使用 `useState`。
 
-### 初级
-
-`useState` 钩子主要用来为函数 `component` 组件提供状态管理的能力。主要负责：
+**`useState` 钩子主要用来为函数 `component` 组件提供状态管理的能力**。主要负责：
 
 - 在组件渲染更新期间，维持组件状态。
 - 会返回一个 `setter` 函数，可以用来更新状态，并触发 `React` 对组件的重新渲染。
@@ -200,7 +206,7 @@ function submitForm(answer) {
 const [state, setState] = useState(initState)
 ```
 
-示例：
+计数器组件示例：
 
 ```jsx
 import { useState } from 'react';
@@ -223,13 +229,13 @@ function CountButton() {
 
 - 当点击 `button` 的时候，会通过 `setCount` 更新 `count`，`count` 发生改变， `React` 会重新渲染组件。
 
-#### 理解两个关键阶段: `render` & `commit`
+### 理解两个关键阶段: `render` & `commit`
 
-在组件展示在视图之前，必须经过 React  渲染。理解这两个阶段有助于你理解代码执行的过程和行为。
+在组件展示在视图之前，必须经过 `React`  渲染。理解这两个阶段有助于你理解代码执行的过程和行为。
 
 我们这里打一个比喻：
 
-假设一个餐厅点餐的场景，主要角色有：厨师、服务员和顾客。我们将你编写的组件视为餐厅的厨师，可以根据顾客的订单制作菜品。将 React 视为服务员，用于将用户的菜单交给厨师。将顾客视为触发页面交互的用户，将需要渲染给顾客的组件视为菜单。
+假设一个餐厅点餐的场景，主要角色有：厨师、服务员和顾客。我们将你编写的组件视为餐厅的厨师，可以根据顾客的订单制作菜品。将 `React` 视为服务员，用于将用户的菜单交给厨师。将顾客视为触发页面交互的用户，将需要渲染给顾客的组件视为菜单。
 
 <center class="half">
   <img src="./i_render-and-commit1.png" width = "200" height = "200" alt="Trigger" align=left />
@@ -245,16 +251,18 @@ function CountButton() {
 2. **渲染**组件，可以视为厨师最备好菜品。
 3. **提交**到 DOM，可以视为服务员将菜品呈送给顾客。
 
-##### 第一步：触发渲染
+下面分析下上面三步主要发生了什么：
+
+#### 第一步：触发渲染
 
 在通常情况下，会有两种情况会触发渲染：
 
 1. 在组件初始化阶段，进行**初始渲染**。
 2. 当组件的**状态发生更新**时，触发渲染。
 
-###### 初始渲染
+##### 初始渲染
 
-当应用启动时，需要通过 React 的 createRoot 方法获取挂载节点，并调用其返回对象上的 render 方法，将组件渲染到视图上：
+当应用启动时，需要通过 `React` 的 `createRoot` 方法获取挂载节点，并调用其返回对象上的 `render` 方法，将组件渲染到视图上：
 
 ```jsx
 import { createRoot } from 'react-dom/client';
@@ -273,9 +281,9 @@ root.render(<Image />);
 
 ```
 
-###### 状态更新时的重新渲染
+##### 状态更新时的重新渲染
 
-当组件已经完成初始渲染时，后续你可以通过使用 setter 函数更新状态的方式再次触发渲染。更新状态操作会将本次的渲染任务放到渲染队列中，进行渲染。你可以把这想象为餐馆的顾客在点完第一份菜后(完成第一次渲染)，根据他们的口渴或饥饿的状态(更新状态)，又点了茶、甜点和各种各样的东西(再次触发渲染流程)。
+当组件已经完成初始渲染时，后续你可以通过使用 `setter` 函数更新状态的方式再次触发渲染。更新状态操作会将本次的渲染任务放到渲染队列中，进行渲染。你可以把这想象为餐馆的顾客在点完第一份菜后(完成第一次渲染)，根据他们的口渴或饥饿的状态(更新状态)，又点了茶、甜点和各种各样的东西(再次触发渲染流程)。
 
 <center class="half">
   <img src="./i_rerender1.png" width = "200" height = "200" alt="State update..." align=left />
@@ -285,25 +293,25 @@ root.render(<Image />);
   <img src="./i_rerender3.png" width = "200" height = "200" alt="...render" align=right />
 <center>
 
-##### 第二步：React 渲染组件
+#### 第二步：`React` 渲染组件
 
-在你触发渲染后，React 会通过调用组件计算出最终需要渲染到视图上的内容。**”渲染“就意味着 React 在调用你的函数组件**：
+在你触发渲染后，`React` 会通过调用函数组件计算出最终需要渲染到视图上的内容。**”渲染“就意味着 `React` 在调用你的函数组件**：
 
-- 在首次渲染时，React 会调用根组件。
-- 在后续进行更新渲染时，React 会调用由于状态更新而触发渲染的函数组件。
-  - 整个渲染过程是以递归的方式进行的：如果被更新的组件返回了其他组件，React 则会继续渲染该组件，如果该组件返回了一些其他内容，那么接下来将渲染该组件，以此类推。该过程将持续进行，直到不再有嵌套组件，React 确切地知道应该在视图上显示什么。
+- 在首次渲染时，`React` 会调用根组件。
+- 在后续进行更新渲染时，`React` 会调用由于状态更新而触发渲染的函数组件。
+  - 整个渲染过程是以递归的方式进行的：如果被更新的组件返回了其他组件，`React` 则会继续渲染该组件，如果该组件返回了一些其他内容，那么接下来将渲染该组件，以此类推。该过程将持续进行，直到不再有嵌套组件，React 确切地知道应该在视图上显示什么。
 
-- 在初次渲染时，React 会将 html 标签创建转化为 DOM 节点
-- 在更新渲染时，React 会计算它们的哪些属性(如果有的话)自上一次渲染以来发生了变化。在下一步**提交**阶段之前，它不会对该信息做任何处理。
+- 在初次渲染时，`React` 会将 `html` 标签创建转化为 `DOM` 节点
+- 在更新渲染时，`React` 会计算它们的哪些属性(如果有的话)自上一次渲染以来发生了变化。在下一步**提交**阶段之前，它不会对该信息做任何处理。
 
-##### 第三步：React 将更改提交给 DOM 对象
+#### 第三步：`React` 将更改提交给 `DOM` 对象
 
-在组件渲染之后，React 将更新 DOM 对象：
+在组件渲染之后，`React` 将更新 `DOM` 对象：
 
-- 对于初次渲染，React 会通过 appendChild() DOM API 将所创建的所有 DOM 节点更新到视图上。
-- 对于后续的更新渲染，React 将通过 diff  算法，计算出应用最小的必要操作(在渲染时计算!)，以保证 DOM 与最新的渲染输出 DOM 匹配。
+- 对于初次渲染，`React` 会通过 `appendChild()`DOM` API `将所创建的所有 DOM 节点更新到视图上。
+- 对于后续的更新渲染，`React` 将通过 `diff`  算法，计算出应用最小的必要操作数(在渲染时计算!)，以保证 DOM 与最新的渲染输出 DOM 匹配。
 
-**React 仅会在两次渲染结果之间存在差异时才进行更新操作。**例如，下面一个组件，它使用从其父组件传递的 time 属性每秒重新渲染一次。可以注意到，当你在 <input> 中输入一些文本，更新它的值后，在组件重新渲染时，文本不会消失:
+**`React` 仅会在两次渲染结果之间存在差异时才进行更新操作。**例如，下面一个组件，它使用从其父组件传递的 `time` 属性每秒重新渲染一次。可以注意到，当你在 `<input>` 中输入一些文本，更新它的值后，在组件重新渲染时，文本不会消失:
 
 ```jsx
 export default function Clock({ time }) {
@@ -317,15 +325,15 @@ export default function Clock({ time }) {
 
 ```
 
-这是因为在最近的一次渲染中，React 只使用新的 timer 更新了 <h1> 的内容。它可以看到 input 标签在 JSX 中出现在与上次相同的位置，因此 React 不会更新 <input> 标签及它的值!
+这是因为在最近的一次渲染中，`React` 只使用新的 `timer` 更新了 `<h1>` 的内容。它可以看到 `input` 标签在 `JSX` 中出现在与上次相同的位置，因此 `React` 不会更新 `<input>` 标签及它的值!
 
-##### 最后：浏览器绘制
+#### 最后：浏览器绘制
 
-在渲染完成并且 React 更新了 DOM 之后，浏览器将重新绘制视图。其实这个过程也被称为“浏览器渲染”，但 React 将其称为“绘制”，主要是避免与文档的其余部分造成混淆。
+在渲染完成并且 `React` 更新了 `DOM` 之后，浏览器将重新绘制视图。其实这个过程也被称为“浏览器渲染”，但 `React` 将其称为“绘制”，主要是避免与文档的其余部分造成混淆。
 
 ![](i_browser-paint.png)
 
-#### 理解 `state` `snapshot`
+### 理解 `state` `snapshot`
 
 在正常的 `JavaScript` 执行的心智模型中，函数中的代码块是由上到下一行一行的执行的。但是 `React` 函数组件中的状态变量与 `JavaScript` 变量在函数中的表现行为并不一样。
 
@@ -353,9 +361,9 @@ function CountButton() {
 
 ```
 
-- 上面代码初始状态为 0，点击 `button`，会执行 `onClick` 函数
-- 以通常的思维，代码的执行过程是：打印 0、执行 `setCount`, `count` 加 1 、打印 1
-- 但是实际效果却是：打印 0、执行 `setCount`, `count` 加 1 、打印 0。
+- 上面代码初始状态为 `0`，点击 `button`，会执行 `onClick` 函数
+- 以通常的思维，代码的执行过程是：打印 `0`、执行 `setCount`, `count` 加 `1` 、打印 `1`
+- 但是实际效果却是：打印 `0`、执行 `setCount`, `count` 加 `1` 、打印 `0`。
 
 **这是为什么？**
 
@@ -443,7 +451,9 @@ setScore(score + 1); // setScore(0 + 1);
 console.log(score);  // 0
 ```
 
-**在一次渲染中状态变量的值是一直保持不变的**，即使它的事件处理函数是异步的。当 `React` 调用你的组件函数重新获取 UI 快照时，它的状态就被固定了下来。
+相当于你进行了三次重复的 `0 + 1` 操作。
+
+**在一次渲染中状态变量的值是一直保持不变的**，即使它的事件处理函数是异步的。当 `React` 调用你的组件函数重新获取 `UI` 快照时，它的状态就被固定了下来。
 
 可以通过下面的代码理解下：
 
@@ -468,13 +478,13 @@ export default function Counter() {
 
 ```
 
-当 `alert` 运行的时候， `number` 已经发生了改变，但是你可以发现点击 +5 后，`alert` 的 `number` 仍然是上一个状态，这是因为 `React` 使用 `state` 快照进行了调度处理，保证 `alert` 访问的状态仍然是触发 `setTimeout` 时的值。
+当 `alert` 运行的时候， `number` 已经发生了改变，但是你可以发现点击 +5 ，等待三秒后，`alert` 的 `number` 仍然是上一个状态，这是因为 `React` 使用 `state` 快照进行了调度处理，保证 `alert` 访问的状态仍然是触发 `setTimeout` 时的值。
 
 `React` 中的状态变量更像当前组件状态的一个快照，会以不变的状态一直存在于当前组件函数中。你在本次渲染中通过事件函数能访问的状态，都取决于本次渲染对应的状态快照。
 
 > 用大白话理解：
 >
-> 如果你用 JavaScript 函数执行的过程去理解 React 函数组件，就会很好理解**状态快照**的概念。比如说你写了一个函数，会在函数内部做变量声明、内部函数声明、对象变量属性的更改、最终返回一个对象等等一系列操作。
+> 如果你用 `JavaScript` 函数执行的过程去理解 `React` 函数组件，就会很好理解**状态快照**的概念。比如说你写了一个函数，会在函数内部做变量声明、内部函数声明、对象变量属性的更改、最终返回一个对象等等一系列操作。
 >
 > 在你每次调用这个函数的时候，都会走一遍这样的流程：
 >
@@ -483,11 +493,11 @@ export default function Counter() {
 > - 释放执行栈
 > - 进行垃圾回收等操作。
 >
-> 这就是说虽然每次函数执行的时候，都在函数内部声明变量 a，但是每次声明的 a 变量都是一个新的变量，两次函数执行过程中产生的变量 a 在 内存中的地址并不相同，每次执行过程中仅能访问当前执行上下文对象中声明的变量。
+> 这就是说虽然每次函数执行的时候，都在函数内部声明变量 `a`，但是每次声明的 `a` 变量都是一个新的变量，两次函数执行过程中产生的变量 `a` 在 内存中的地址并不相同，每次执行过程中仅能访问当前执行上下文对象中声明的变量。
 >
-> 在 React 组件中，也是同样的道理，不同之处就是 React Hook 会对状态做些特殊处理，导致你可能以通常的思维方式去理解会与预期不符。React Hook 具体做了什么，暂不深究。后面我们可以进行相关原理分析。
+> 在 `React` 组件中，也是同样的道理，不同之处就是 `React` `Hook` 会对状态做些特殊处理，导致你可能以通常的思维方式去理解会与预期不符。
 
-#### 理解批量更新
+### 理解批量更新
 
 还下面的代码为例：
 
@@ -513,21 +523,21 @@ export default function ColorBox() {
 }
 ```
 
-上面的代码期望在点击 button 的时候，可以实现 div 背景色的多次切换效果。
+上面的代码期望在点击 `button` 的时候，可以实现 `div` 背景色的多次切换效果。
 
-但是当你点击的时候就会发现，事情可能并不像预期的那样，而是会直接渲染 yellow。这是因为 React 会在更新你的 state 之前等待所有的事件处理函数运行结束。
+但是当你点击的时候就会发现，事情可能并不像预期的那样，而是会直接渲染 `yellow`。这是因为 `React` 会在更新你的 `state` 之前等待所有的事件处理函数运行结束。这其实与上面 +1 的案例相同。
 
 这就好比在餐厅中点餐时，服务员不会等你点了一份菜就直接送给厨师，而是会等你点餐结束并允许你更改菜单，等你确定完最终菜品才递给厨师。甚至中间还会帮助其他顾客点餐。
 
 ![](i_react-batching.png)
 
-React 允许你更新多个状态变量，甚至更新多个组件的变量，这可以避免触发多次渲染。但是这也意味着 UI 只有等到所有的事件处理函数及其他代码运行结束之后，才会更新。这种行为被称为**批处理** 。
+`React` 允许你更新多个状态变量，甚至更新多个组件的变量，这可以避免触发多次渲染。但是这也意味着 `UI` 只有等到所有的事件处理函数及其他代码运行结束之后，才会更新。这种行为被称为**批处理** 。
 
-注意，React 的批处理并不会对用户有意触发的事件有效。比如点击事件，每次点击事件都是独立的。
+注意，`React` 的批处理并不会对用户有意触发的事件有效。比如点击事件，每次点击事件都是独立的。
 
-##### 那如何在下一次渲染前进行多次更新操作？
+#### 那如何在下一次渲染前进行多次更新操作？
 
-这种情况通常不多，但是如果你想在下次渲染前多次更新相同的状态变量，你可以在 setter 函数中传递一个函数，例如：`setNumber(n => n + 1)`，这个函数可以基于渲染队列中的上一个状态，计算下一个状态。
+这种情况通常不多，但是如果你想在下次渲染前多次更新相同的状态变量，你可以在 `setter` 函数中传递一个函数，例如：`setNumber(n => n + 1)`，**这个函数可以基于渲染队列中的上一个状态，计算下一个状态**。
 
 ```jsx
 import { useState } from 'react';
@@ -548,14 +558,14 @@ export default function Counter() {
 }
 ```
 
-上面 setter 函数中的 n =>  n + 1 会被作为更新函数调用，当你点击 button 的时候：
+上面 `setter` 函数中的 `n =>  n + 1` 会被作为更新函数调用，当你点击 `button` 的时候：
 
 1. 当所有的事件函数运行结束后，React 会将更新函数放进执行队列中等待执行。
-2. 当进入下一次渲染时，React 会遍历执行队列中的更新函数，得出最终状态。
+2. 当进入下一次渲染时，`React` 会遍历执行队列中的更新函数，得出最终状态。
 
-**当 React 执行队列中的更新函数时，会将当前执行的更新函数返回的结果传递给下一个待执行的更新函数**。所以当你点击一次时，就会实现一个 +3 的效果。
+**当 `React` 执行队列中的更新函数时，会将当前执行的更新函数返回的结果传递给下一个待执行的更新函数**。所以当你点击一次时，就会实现一个 `+3` 的效果。
 
-##### 如果先是以替换的方式更新，然后以更新函数的方式更新状态会发生什么？
+#### 如果先是以替换的方式更新，然后以更新函数的方式更新状态会发生什么？
 
 ```jsx
 import { useState } from 'react';
@@ -577,21 +587,21 @@ export default function Counter() {
 
 你认为当点击按钮的时候，会增加几？
 
-上面的代码意思是告诉 React  应该按下面的方式更新：
+上面的代码意思是告诉 `React`  应该按下面的方式更新：
 
-1. `setNumber(number + 5)`: `number` 是`0`, 因此 `setNumber(0 + 5)`. React 会将任务 *”用`5`替换 number“* 放入队列中
-2. `setNumber(n => n + 1)`: `n => n + 1` 是一个更新函数。React 会将更新函数添加到任务队列中。
+1. `setNumber(number + 5)`: `number` 是`0`, 因此 `setNumber(0 + 5)`. `React` 会将任务 *”用`5`替换 `number`“* 放入队列中
+2. `setNumber(n => n + 1)`: `n => n + 1` 是一个更新函数。`React` 会将更新函数添加到任务队列中。
 
-在下一次渲染时，React 会遍历整个状态队列：
+在下一次渲染时，`React` 会遍历整个状态队列：
 
-| 更新队列           | `n`          | 返回值      |
-| ------------------ | ------------ | ----------- |
-| “replace with `5`” | `0` (unused) | `5`         |
-| `n => n + 1`       | `5`          | `5 + 1 = 6` |
+| 更新队列           | `n`            | 返回值      |
+| ------------------ | -------------- | ----------- |
+| “replace with `5`” | `0` (没有使用) | `5`         |
+| `n => n + 1`       | `5`            | `5 + 1 = 6` |
 
-最终 React 会将 6 作为结果存储起来，并通过 useState 返回。
+最终 `React` 会将 `6` 作为结果存储起来，并通过 `useState` 返回。
 
-##### 如果两种方式穿插进行，会发生什么？像下面这样
+#### 如果两种方式穿插进行，会发生什么？像下面这样
 
 ```jsx
 import { useState } from 'react';
@@ -612,13 +622,13 @@ export default function Counter() {
 }
 ```
 
-下面是 React 在执行这个事件处理程序时的处理流程:
+下面是 `React` 在执行这个事件处理程序时的处理流程:
 
-1. setNumber(number + 5):  number为0，所以setNumber(0 + 5). React 将“用 5 替换状态”添加到队列中。
-2. n + 1 是一个更新函数。React 将该函数添加到它的队列中。
-3. setNumber(42): React 将 “用 42 替换状态” 添加到队列中。
+1. `setNumber(number + 5):`  `number` 为 0，所以 `setNumber(0 + 5)`. `React` 将“用 5 替换状态”添加到队列中。
+2. `n + 1` 是一个更新函数。`React` 将该函数添加到它的队列中。
+3. `setNumber(42`): `React` 将 “用 42 替换状态” 添加到队列中。
 
-在下一次渲染期间，React 将遍历状态队列:
+在下一次渲染期间，`React` 将遍历状态队列:
 
 | 更新队列           | `n`            | 返回值      |
 | ------------------ | -------------- | ----------- |
@@ -626,24 +636,24 @@ export default function Counter() {
 | `n => n + 1`       | `5`            | `5 + 1 = 6` |
 | “用 `42` 替换状态” | `6` (没有使用) | `42`        |
 
-然后 React 存储 42 作为最终结果，并从 useState 返回它。
+然后 `React` 存储 `42` 作为最终结果，并从 `useState` 返回它。
 
-总结一下，其实你可以这样想，当你执行 setNumber 函数时在队列中都放了哪些任务？：
+总结一下，其实你可以这样想，当你执行 `setNumber` 函数时在队列中都放了哪些任务？：
 
 - 将 “用 5 替换状态” 添加到队列中。
 - 将更新函数 (例如 `n => n + 1` ) 添加到队列中。
-- 将 “用 42 替换状态” 添加到队列中， 并忽略已经在队列中的任务，例如前面的两个任务等等。
+- 将 “用 `42` 替换状态” 添加到队列中， 并忽略已经在队列中的任务，例如前面的两个任务等等。
 
-事件处理执行完成后，React 将触发重新渲染。在重新渲染时，React 将处理队列中的任务。更新函数在渲染期间运行，因此**更新函数必须是纯函数**，并且只返回结果。不要试图从它们内部设置状态或运行其他副作用。在严格模式下，React 会将每个更新程序函数执行两次(但忽略第二个结果)，以帮助你查找 `bug`。
+事件处理执行完成后，`React` 将触发重新渲染。在重新渲染时，`React` 将处理队列中的任务。更新函数在渲染期间运行，因此**更新函数必须是纯函数**，并且只返回结果。不要试图从它们内部设置状态或运行其他副作用。在严格模式下，`React` 会将每个更新程序函数执行两次(但忽略第二个结果)，以帮助你查找 `bug`。
 
-#### 理解状态可读不可变
+### 理解状态可读不可变
 
 1. 对于 `string`、`boolean`、`number` 这种**原始类型的 `state`**。我们会通过 `setter` 函数设置一个新的值，来触发组件重新渲染。如果使用原始值会发生什么？
 
 来看段代码：
 
 - 我们用 `random` 来标记组件是否重新渲染
-- 在 `onClick` 的时候，调用 `setter` 函数，给 setCount 传递的还是 0 ，状态保持不变
+- 在 `onClick` 的时候，调用 `setter` 函数，给 `setCount` 传递的还是 0 ，状态保持不变
 
 ```jsx
 import { useState, useEffect } from 'react'
@@ -663,10 +673,9 @@ function Counter() {
 }
 
 export default Counter
-
 ```
 
-当你点击 ADD 的时候就会发现，虽然调用了 `setCount` 函数，但是组件别没有重新渲染。只有真正通过 `setCount` 函数改变 `count` 时，组件才会触发重新渲染：
+当你点击 `ADD` 的时候就会发现，虽然调用了 `setCount` 函数，但是组件别没有重新渲染。只有真正通过 `setCount` 函数改变 `count` 时，组件才会触发重新渲染：
 
 ```js
 setCount(count + 1)
@@ -689,7 +698,7 @@ const onClick = () => {
 }
 ```
 
-当用户触发 `onClick` 事件时，我们更改了 `position` 的 x 属性，并且可以通过日志看到 `position` 确实发生了变化。但是并没有触发组件的重新渲染。
+当用户触发 `onClick` 事件时，我们更改了 `position` 的 `x` 属性，并且可以通过日志看到 `position` 确实发生了变化。但是并没有触发组件的重新渲染。
 
 这是因为**引用类型**虽然在 `React` 函数组件中是可更改的，但是你需要将其**视为不可变类型**，在更新的时候通过创建一个新的对象，来触发更新操作。
 
@@ -704,13 +713,13 @@ const onClick = () => {
 
 上面的代码我们为 `setPosition` 传入了一个新的对象，并通过对原始 `position` 的进行解构操作，来保留不需要更改的属性。
 
-原理是 React 源码中对 `state` 的**新旧值进行了浅比较**，只有当新旧状态不同时，才会执行触发更新操作。
+原理是 `React` 源码中对 `state` 的**新旧值进行了浅比较**，只有当新旧状态不同时，才会执行触发更新操作。
 
-**所以在 React 中，不管是原始类型还是引用类型的的状态，你都需要将其视为只可读不可变的。**当你想要更新一个状态的时候，就传入一个新的 `value` 通过 `setter` 函数来替换状态吧。
+**所以在 `React` 中，不管是原始类型还是引用类型的的状态，你都需要将其视为只可读不可变的。**当你想要更新一个状态的时候，就传入一个新的 `value` 通过 `setter` 函数来替换状态吧。
 
 当你理解了 `React` 的状态**可读不可变**逻辑，就能很轻松的学会对象类型与数组类型的操作方法了：
 
-##### 更新对象类型状态
+#### 更新对象类型状态
 
 - 对于普通的对象在更新时，给 `setter` 函数传入一个新的字面量对象，通过 `...` 解构运算符保留不需要更改的属性，对目标属性设置新的值
 - 对于嵌套类型的对象，同样需要传入一个新的字面量对象，但是需要对对象进行多次解构操作。
@@ -743,7 +752,7 @@ function handleTitleChange(e) {
 }
 ```
 
-##### 更新数组类型状态
+#### 更新数组类型状态
 
 - 添加操作，需要用 `concat` 方法或者 `[...arr]` 展开语法
 - 删除操作，使用 `filter` 或 `slice` 方法
@@ -780,7 +789,7 @@ setArtists(sortArtistList);
 
 总之，不管你如何操作数组或者数组中的 `item`，记得给 `setter` 函数一个新的数组吧。
 
-#### 惰性初始化
+### 惰性初始化
 
 从上文中我们可以知道 `useState` 可以接受任意类型的数据作为初始状态。但有时我们想对初始化的状态先做一些计算操作，比如对数组类型的过滤，并且考虑到初始状态只有在组件的 `mounted` 阶段有用，所以我们期望这些计算操作仅在初始化阶段执行一次就好。那么我们可能这么写代码：
 
@@ -805,10 +814,10 @@ function Counter() {
 当你点击 `button` 并查看日志的时候，你会发现：
 
 - `getInitialValue` 函数会在每次触发 `click` 事件的时候执行，这意味着每次渲染的时候都调用了 `getInitialValue` 函数
-- 但是 `getInitialValue` 仅在第一次执行的时候是有用的，后面的每次执行结果都会被舍弃，因为后续的状态都使用的是传给 setter 函数的值
+- 但是 `getInitialValue` 仅在第一次执行的时候是有用的，后面的每次执行结果都会被舍弃，因为后续的状态都使用的是传给 `setter` 函数的值
 - 这种行为并不符合我们预期，通常 `getInitialValue` 中很可能做些计算开销很大的操作，这会影响到应用性能
 
-`useState` 也可以接受一个函数作为初始状态。当初始状态是一个函数的时候，`React` 只会在组件的第一次挂着阶段调用函数，获取初始状态，在后续的更新阶段并不会再次调用，因此我们通常可以通过给 useState 传入一个函数，让函数做一些计算操作，来获取一个目标初始状态。
+`useState` 也可以接受一个函数作为初始状态。当初始状态是一个函数的时候，`React` 只会在组件的第一次挂着阶段调用函数，获取初始状态，在后续的更新阶段并不会再次调用，因此我们通常可以通过给 `useState` 传入一个函数，让函数做一些计算操作，来获取一个目标初始状态。
 
 如果想要实现仅执行一次的效果，我们可以给 `useState` 传入一个 `callback` `function`，而不是一个函数返回的结果，并且这个 `callback` 被执行的时候会返回初始状态。
 
@@ -893,13 +902,13 @@ export default function App() {
 
 ![](preserving_state_tree.webp)
 
-上面的 App 组件的结构如上图所示。
+上面的 `App` 组件的结构如上图所示。
 
 ![](preserving_state_increment.webp)
 
 当你点击其中一个计数器时，会发现只有点击的会增加，另一个状态保持不变，这是因为两个组件的状态是独立的。
 
-现在对 APP 组件代码做些改动：
+现在对 `APP` 组件代码做些改动：
 
 ```jsx
 export default function App() {
@@ -952,7 +961,7 @@ export default function App() {
 
 让我们看下下面代码：
 
-对 APP 组件改写：
+对 `APP` 组件改写：
 
 ```jsx
 export default function App() {
@@ -980,13 +989,13 @@ export default function App() {
 
 ```
 
-- 上面代码可以实现在 `App` 组件中控制子组件 `Counter` 的 `fancy` 类名
+- 上面代码可以实现在 `App` 组件中控制子组件 `Counter` 的 `fancy` 类名，该类会为 `Counter` 添加写 `CSS` 效果。
 - 当你切换 `checkbox` 选中状态时，不管属性 `isFancy` 的值是 `true` 还是 `false` ，`Counter` 组件的 `state` 都不会重置。
 - 因为 `Counter` 组件总是作为 `div` 标签的第一个子节点从 `APP` 组件中返回，它的位置没有发生变化！
 
 ![](preserving_state_same_component.webp)
 
-从 React 的视角来看，在切换 checkbox 的过程中，总是从相同的位置返回相同的 Counter 组件，所以状态没有重置！
+从 `React` 的视角来看，在切换 `checkbox` 的过程中，总是从相同的位置返回相同的 `Counter` 组件，所以状态没有重置！
 
 > 注意：
 >
@@ -994,7 +1003,7 @@ export default function App() {
 
 #### 相同的位置返回不同的组件则会重置状态
 
-再对 APP 组件进行更改：
+再对 `APP` 组件进行更改，使用不同的标签包裹 `Counter` 组件：
 
 ```jsx
 function App() {
@@ -1036,7 +1045,7 @@ function App() {
 
 ![](preserving_state_diff_same_pt2.webp)
 
-切换前后，UI 树结构发生了变化！
+你会注意到，切换前后，`UI` 树结构发生了变化！
 
 **因此当你在相同的位置渲染了一个不同的组件时，`React`  会重置整个子树的状态。**
 
@@ -1153,47 +1162,13 @@ export default function Scoreboard() {
 - 当切换的时候，两个组将的 `state` 不会被保存，因为它们有不同的 `key`
 - 不同的 `key` ，`React` 以 `key` 作为组件的位置标记而不是其在父组件中的顺序。
 
-为组件标明一个具体的 key，从 React 的视角来看，意味着这是两个不同的组件，因此它们不会进行状态共享。每次将其渲染到视图时都会为其创建状态，每次将其移除时，都会将其状态销毁。
-
-#### 避免冗余与重复
-
-- 创建的状态是否会引起冲突矛盾
-- 在另一个状态变量中是否已经有相同的信息可用?
-- 能否根据一个状态的相反状态得到一个另一个状态
-
-#### 原则
-
-在一个组件中会可能存在多个 state ，你可以选择 JavaScript 中的任意数据类型，这里有几条原则可以帮助你创建一个更合理的 state 的结构：
-
-- 合并相关状态，如果你总是需要同时更新两个或者多个 state 变量，那么你可以考虑将这些 state 变量组合成一个 state 变量
-- 避免状态矛盾，当一个 state 结构与其他 state 相互矛盾时，你应该避免这种情况，比如存在多个 state 变量用于描述或记录同一操作的不同状态时，你就应该讲这些相互矛盾的 state 合并在一起。
-- 避免状态冗余，如果当前状态在组件渲染期间可以通过 props 或者 其他 state 变量计算出来，那么你没有必要通过 useState 对其进行转换，例如存在一个 state ，它的最新状态总是需要根据其他状态进行计算更新，那么你应该将其从组件 state 中提取出来。放在组件顶层空间，由组件渲染阶段自动完成 state 的更新
-- 避免状态重复，当在多个 state 变量或者嵌套对象中存在相同的数据时，很难进行状态同步，你应该尽量减少重复。这条原则多用于数组类型中，当需要对数组项进行操作时，我们最好选择记录数组项的下标或者 id ，而不是去记录数组项
-- 避免深层嵌套，深层次的嵌套结构是非常不利于数据更新的，因为你需要层层解构，如果可以，尽可能将数据拍平。
-
-- 将两个或多个组件中需要共享的状态提升到最近公共父组件
-
-
-
-- 在组件渲染期间通过计算获取状态
-
-- 状态提升，在组件间共享组件状态
-
-- 保持与重置状态，key
-
-- reducer 对 更新逻辑进行整合管理
-
-- 通过 context 实现深层共享
-
-- reducer 结合 context 一起使用
-
-  
+为组件标明一个具体的 `key`，从 `React` 的视角来看，意味着这是两个不同的组件，因此它们不会进行状态共享。每次将其渲染到视图时都会为其创建状态，每次将其移除时，都会将其状态销毁。
 
 ## useReducer Hook
 
 有时候你会发现，在写组件的时候，随着你的业务逻辑变得复杂，组件的代码量也会变得越来越多、更新 `state` 的事件函数也会越来越多，并且 *<u>`state` 更新逻辑分散在组件的各个事件函数中</u>*，这使得你的组件代码难以阅读、进行状态维护。对于这种情况，你就可以通过使用 `userReducer hook` 将所有的 `state` 更新逻辑合并到一个被称为 `reducer` 的纯函数中。
 
-以下面代码为例，会创建一个 ToDoList，在页面中你可以对 list 进行增删改操作。
+以下面代码为例，会创建一个 `ToDoList`，在页面中你可以对 `list` 进行增删改操作。
 
 ```jsx
 import {useState} from 'react';
@@ -1253,11 +1228,13 @@ const initialTasks = [
 
 ```
 
-在上面的代码中你可以看到，所有的事件处理函数中都会调用 `setTasks` 更新状态。如果组件中有更复杂的操作逻辑，那意味着 `setTasks` 函数会零星散布于组件各事件函数中，这可能会为你的组件维护造成一定困扰。为此你可以通过尝试使用 useReducer 钩子将所有的更新操作从组件中抽离出来，集中管理，以解决这个问题。
+在上面的代码中你可以看到，所有的事件处理函数中都会调用 `setTasks` 更新状态。如果组件中有更复杂的操作逻辑，那意味着 `setTasks` 函数会零星散布于组件各事件函数中，这可能会为你的组件维护造成一定困扰。为此你可以通过尝试使用 `useReducer` 钩子将所有的更新操作从组件中抽离出来，集中管理，以解决这个问题。
 
 重构过程需要经过下面三步：
 
-第一步：将设置状态逻辑转换为 `dispatch action`。`dispatch` 函数可以接受一个 `Js` 对象，对象中的 `type` 属性用于描述本次更新动作，其余可视为荷载。
+**第一步：将设置状态逻辑转换为 `dispatch action`。**
+
+- `dispatch` 函数可以接受一个 `Js` 对象，对象中的 `type` 属性用于描述本次更新动作，其余可视为荷载。
 
 ```js
 // 负责添加任务
@@ -1322,7 +1299,7 @@ function handleDeleteTask(taskId) {
 - 在上面的代码中我们给 `dispatch` 函数传递了一个对象，这个对象在 `React` 中，通常被称为 `action`。
 - `action` 对象可以有任意类型的属性，但是通常会有一个 `type` 属性用于描述 **发生了什么**，而其他字段则作为 **荷载**，
 
-##### 第二步：写一个 `rendcer` 纯函数
+**第二步：写一个 `rendcer` 纯函数**
 
 - 将所有的 `state` 更新逻辑放在 `customReducer` 函数中，`reducer` 函数接收两个参数：当前 `state` 与 `action` 对象，并且它需要返回一个新的 `state` 值。
 - `reducer` 函数存在于组件函数外部，因此我们可以将其提取到一个单独的文件中。专用于做 `state` 更新操作。
@@ -1359,8 +1336,6 @@ function tasksReducer(tasks, action) {
 }
 
 ```
-
-
 
 **第三步：在组件中使用 `reducer` 函数。**
 
@@ -1424,7 +1399,7 @@ export default function TaskApp() {
 
 1. **代码体积方面：**
 
-这个需要结合具体的 `state` 变量类型和组件中的业务逻辑来说，如果 `state` 变量只是简单的 `boolean` 、`number` 、`string` 类型，则使用 `useState` 更直接，代码可读性也更好。如果 变量类型是 `object` 或者 `array` 类型并且函数组件中存在多个事件处理函数用于更新 `state` 变量，则使用 `useReducer` 更高效、代码可读性更好，因为 `useReducer` 可以聚合所有 `state` 更新操作，并避免组件代码臃肿。具体例子，可以结合表单更新或者表格的增、删、改、查就可以体会到。
+这个需要结合具体的 `state` 变量类型和组件中的业务逻辑来说，如果 `state` 变量只是简单的 `boolean` 、`number` 、`string` 类型，则使用 `useState` 更直接，代码可读性也更好。如果变量类型是 `object` 或者 `array` 类型并且函数组件中存在多个事件处理函数用于更新 `state` 变量，则使用 `useReducer` 更高效、代码可读性更好，因为 `useReducer` 可以聚合所有 `state` 更新操作，并避免组件代码臃肿。具体例子，可以结合表单更新或者表格的增、删、改、查就可以体会到。
 
 2. **测试方面**：
 
@@ -1462,14 +1437,18 @@ function useCustomState(initialState) {
 
 ## useContext
 
-`useContext hook` 主要解决的是**数据透传与共享**的问题。在业务开发过程中，如果遇到两个同层级之间的数据共享问题时，我们通常会将需要共享的数据向上提升到邻近的父组件中。但是如果遇到需要将父组件的数据传递给多个子组件或者 `c`  孙组件甚至曾孙组件的情况，全部采用 `props` 层层传递的话，会使代码变得非常冗长，不便于组件状态的维护管理。为了解决这个问题，`React` 提供了一个可以共享上下文的 `Hook` —— `useConext`，`useContext` 可以使父组件将自己的状态共享给其任意子孙组件，不管这个组件层级有多深，而不是通过 props 的方式。
+`useContext hook` 主要解决的是**数据透传与共享**的问题。在业务开发过程中，如果遇到两个同层级之间的数据共享问题时，我们通常会将需要共享的数据向上提升到邻近的父组件中。
+
+但是如果遇到需要将父组件的数据传递给多个子组件或者 `c`  孙组件甚至曾孙组件的情况，全部采用 `props` 层层传递的话，会使代码变得非常冗长，不便于组件状态的维护管理。
+
+为了解决这个问题，`React` 提供了一个可以共享上下文的 `Hook` —— `useConext`，`useContext` 可以使父组件将自己的状态共享给其任意子孙组件，不管这个组件层级有多深，而不是通过 `props` 的方式。
 
 <center class="half">
   <img src="./passing_data_lifting_state.webp" width = "400" height = "200" alt="Initial state" align=left />
   <img src="./passing_data_prop_drilling.webp" width = "500" height = "300" alt="Clicking “next”" align=center />
 <center>
 
-下面看一段代码，在 Page 组件中，会通过给 Section 组件传递 level 属性，设置嵌套的 Section 之间的层级关系。
+下面看一段代码，在 `Page` 组件中，会通过给 `Section` 组件传递 `level` 属性，设置嵌套的 `Section` 之间的层级关系。
 
 代码示例：
 
@@ -1527,7 +1506,7 @@ export default function Page() {
 
 - 上面代码示例中，`Heading` 组件可接受一个 `level` 属性用于标题层级显示
 - 你会发现在相同的 `Section` 组件中的多个 `Heading` 组件，都接受了相同的 `level` 属性
-- 如果你想更改其中一个层级中的 level 属性，必须一个一个更改，这种情况对于代码维护非常困难
+- 如果你想更改其中一个层级中的 `level` 属性，必须一个一个更改，这种情况对于代码维护非常困难
 
 接下来我们就可以使用 `useContext` 重构上面的代码，如果对于同一层级的 `Heading` 组件，我们可以将 `level` 传递给其最近的父组件 `Section`。再由 `Section` 组件传递给 `Heading` 组件，则可以减少部分重复代码：
 
@@ -1575,7 +1554,7 @@ export default function Section({ level, children }) {
 
 - 所有需要父组件数据的子孙组件必须被 `LevelContext` 的派发器**包裹**起来。
 
-**第三步：在 `Heading` 组件中获取数据**。导入 useContext 钩子，在需要使用数据的组件中调用。
+**第三步：在 `Heading` 组件中获取数据**。导入 `useContext` 钩子，在需要使用数据的组件中调用。
 
 ```jsx
 import { useContext } from 'react';
@@ -1671,7 +1650,245 @@ export default function Page() {
 - `Reducer` 可以将组件的 `state` 更新逻辑整合在一起
 - `Context` 可以将组件数据向子孙组件进行深层传递
 
-为此你可以将 `Reducer` & `Context` 结合在一起，使用 `Context` 将 `Reducer`  状态与 `dispatch` 向下传递。从而实现数据共享
+为此你可以将 `Reducer` & `Context` 结合在一起，使用 `Context` 将 `Reducer`  状态与 `dispatch` 向下传递。从而实现复杂数据的管理。
 
+这里还以上面的 `ToDoLIst` 为例：
 
+```jsx
+function TaskApp() {
+  const [tasks, dispatch] = useReducer(
+    tasksReducer,
+    initialTasks
+  );
 
+  function handleAddTask(text) {
+    dispatch({
+      type: 'added',
+      id: nextId++,
+      text: text,
+    });
+  }
+
+  function handleChangeTask(task) {
+    dispatch({
+      type: 'changed',
+      task: task
+    });
+  }
+
+  function handleDeleteTask(taskId) {
+    dispatch({
+      type: 'deleted',
+      id: taskId
+    });
+  }
+
+  return (
+    <>
+      <h1>Day off in Kyoto</h1>
+      <AddTask
+        onAddTask={handleAddTask}
+      />
+      <TaskList
+        tasks={tasks}
+        onChangeTask={handleChangeTask}
+        onDeleteTask={handleDeleteTask}
+      />
+    </>
+  );
+}
+```
+
+上面的代码中我们主要是通过 `props` 的方式，将事件处理函数向下层层传递。
+
+现在我们该用 `Context` & `Reducer` 结合的方式。
+
+第一步：创建 `Context`：
+
+```jsx
+import { createContext } from 'react';
+
+export const TasksContext = createContext(null);
+export const TasksDispatchContext = createContext(null);
+
+```
+
+第二步：派发状态与 `dispatch` 函数：
+
+```jsx
+export default function TaskApp() {
+  const [tasks, dispatch] = useReducer(tasksReducer, initialTasks);
+  // ...
+  return (
+    <TasksContext.Provider value={tasks}>
+      <TasksDispatchContext.Provider value={dispatch}>
+        ...
+      </TasksDispatchContext.Provider>
+    </TasksContext.Provider>
+  );
+}
+// reducer 函数
+function tasksReducer(tasks, action) {
+  switch (action.type) {
+    case 'added': {
+      return [...tasks, {
+        id: action.id,
+        text: action.text,
+        done: false
+      }];
+    }
+    case 'changed': {
+      return tasks.map(t => {
+        if (t.id === action.task.id) {
+          return action.task;
+        } else {
+          return t;
+        }
+      });
+    }
+    case 'deleted': {
+      return tasks.filter(t => t.id !== action.id);
+    }
+    default: {
+      throw Error('Unknown action: ' + action.type);
+    }
+  }
+}
+// 初始状态
+const initialTasks = [
+  { id: 0, text: 'Philosopher’s Path', done: true },
+  { id: 1, text: 'Visit the temple', done: false },
+  { id: 2, text: 'Drink matcha', done: false }
+];
+
+```
+
+这个时候其实已经可以去除 `AddTask` 组件、`TaskList` 组件、`Task` 组件上传递的 `props` 了。
+
+第三步：在目标组件中通过 `useContext` 引入上下文派发的数据：
+
+```jsx
+export default function TaskList() {
+  const tasks = useContext(TasksContext);
+  return (
+    <ul>
+      {tasks.map(task => (
+        <li key={task.id}>
+          <Task task={task} />
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+function Task({ task }) {
+  const [isEditing, setIsEditing] = useState(false);
+  const dispatch = useContext(TasksDispatchContext);
+  let taskContent;
+  if (isEditing) {
+    taskContent = (
+      <>
+        <input
+          value={task.text}
+          onChange={e => {
+            dispatch({
+              type: 'changed',
+              task: {
+                ...task,
+                text: e.target.value
+              }
+            });
+          }} />
+        <button onClick={() => setIsEditing(false)}>
+          Save
+        </button>
+      </>
+    );
+  } else {
+    taskContent = (
+      <>
+        {task.text}
+        <button onClick={() => setIsEditing(true)}>
+          Edit
+        </button>
+      </>
+    );
+  }
+  return (
+    <label>
+      <input
+        type="checkbox"
+        checked={task.done}
+        onChange={e => {
+          dispatch({
+            type: 'changed',
+            task: {
+              ...task,
+              done: e.target.checked
+            }
+          });
+        }}
+      />
+      {taskContent}
+      <button onClick={() => {
+        dispatch({
+          type: 'deleted',
+          id: task.id
+        });
+      }}>
+        Delete
+      </button>
+    </label>
+  );
+}
+```
+
+`AddTask` 组件：
+
+```jsx
+export default function AddTask() {
+  const [text, setText] = useState('');
+  const dispatch = useContext(TasksDispatchContext);
+  return (
+    <>
+      <input
+        placeholder="Add task"
+        value={text}
+        onChange={e => setText(e.target.value)}
+      />
+      <button onClick={() => {
+        setText('');
+        dispatch({
+          type: 'added',
+          id: nextId++,
+          text: text,
+        }); 
+      }}>Add</button>
+    </>
+  );
+}
+
+let nextId = 3;
+```
+
+通过上面代码可以看出，相比 `react-redux`，通过 `useReducer` 与 `useContext` 管理全局状态更加简单。
+
+## 总结
+
+- `state` 通过 `useState` 初始化，`state` 的更新必须通过 `setter` 函数来进行
+- `state` 一旦在当前渲染期间计算出来，就会被定格，后续访问的状态值都是从 `React` 状态快照中获取的
+- `state` 是不可变的，对于挂载后的更新，必须通过 `setter` 函数来进行，执行 `setter` 函数，更改状态，触发新一轮的渲染
+- 如果调用 `useState` 时传递一个函数，则这个函数仅会被执行一次，被称为惰性初始化
+- 状态的保存与组件在 `UI` 树中的位置息息相关
+- `useContext` 钩子可以解决跨层级组件通信的问题
+- `useReducer` 钩子可以解决数据更新逻辑集中管理的问题
+- `useContext` & `useReducer` 结合使用可以简单有效的解决小型项目中 `react-redux` 数据管理复杂的问题
+
+参考资料：
+
+- [React Docs](https://beta.reactjs.org/learn)
+- [React Hooks: Managing State With useState Hook](https://dev.to/pbteja1998/react-hooks-managing-state-with-usestate-hook-4689)
+- [React Hooks - useState](https://dev.to/brettblox/react-hooks-usestate-43en)
+- [5 use cases of the useState ReactJS hook](https://dev.to/colocodes/5-use-cases-of-the-usestate-reactjs-hook-4n00)
+- [2 use cases of the useReducer ReactJS hook](https://dev.to/colocodes/2-use-cases-of-the-usereducer-reactjs-hook-ine)
+- [React Hooks: useState 和 useReducer 有什么区别？](https://zhuanlan.zhihu.com/p/336837522)
