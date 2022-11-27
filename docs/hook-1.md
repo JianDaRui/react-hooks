@@ -175,7 +175,7 @@ function submitForm(answer) {
 
 ```
 
-上面的代码使用**声明式编程**方式实现，代码量可能与 前者相差无几，但是可以看到，声明式编程少了一些 DOM 操作，多了一些状态判断。
+上面的代码使用**声明式编程**方式实现，代码量可能与前者相差无几，但是可以看到，声明式编程少了一些 DOM 操作，多了一些状态判断。
 
 这就好比你打了辆出租车，你仅需要告诉司机(**`React`**)目的地即可，而不是告诉司机该如何拐弯、如何行进。司机的工作就是将你载到目的地，司机可能还知道一些近道。
 
@@ -824,20 +824,10 @@ function Counter() {
 代码示例：
 
 ```jsx
-import React, { useState } from "react";
-
-function getInitialValue() {
-  console.log('getInitialValue is getting executed');
-  // ... do some expensive operations
-  return 0;
-}
-
+// ...
 function Counter() {
   const [count, setCount] = useState(getInitialValue);
-  function increment() {
-    setCount(count + 1);
-  }
-  return <button onClick={increment}>{count}</button>;
+	// ...
 }
 ```
 
