@@ -23,7 +23,7 @@
 
 // export default UseStateFeat
 
-import React, { useState } from "react";
+import React, { useState, useRef } from "react";
 
 function getInitialValue() {
   console.log('getInitialValue is getting executed');
@@ -33,9 +33,19 @@ function getInitialValue() {
 
 function Counter() {
   const [count, setCount] = useState(() => getInitialValue());
+  const ref = useRef(0)
   function increment() {
-    setCount(count + 1);
+    ref.current += 1
+    // setCount(count + 1);
   }
-  return <button onClick={increment}>{count}</button>;
+
+  const random = Math.floor(Math.random()* 10000000000)
+
+  return (
+    <div>
+      <h1 style={{color: 'pink'}}>{random}</h1>
+      <button onClick={increment}>{ref.current}</button>
+    </div>
+  )
 }
 export default Counter

@@ -1,0 +1,3605 @@
+# React Hooks —— 逃生舱
+
+## 为什么叫逃生舱
+
+## useRef
+
+通过上文可以知道，使用 `useState`、`useReducer`、`useContext` 创建的状态，都是不可变的，一旦更新就会触发组件的重新渲染。但是实际开发过程中你经常需要一些不希望引起组件重新渲染的状态、并且希望在组件的生命周期中，该状态能被一直保持在 `React` 中。
+
+`Refs` 就是为了解决这个问题提出来的。
+
+当你需要在组件中一直缓存一些状态，但是并不想因为这些状态的改变而重新触发渲染，那么你可以选择使用 `ref`。
+
+使用示例：
+
+```jsx
+// 1. 从 react 中导出 useRef hook，并在函数组件中调用
+import { useRef } from 'react';
+
+export default function Counter() {
+  // 2. 调用 useRef 并进行初始化, 会返回一个带有 current 属性的对象： { current: 0 }
+  let countRef = useRef(0);
+
+  function handleClick() {
+    // 3. 当前引用值会发生变化，但是并不会触发组件的重新渲染
+    countRef.current = countRef.current + 1;
+    console.log(countRef.current)
+  }
+
+	const randomFlag = Math.floor(Math.random()* 10000000000000)
+
+  return (
+	   <div>
+				<h1 style={{ color: 'pink' }}>{randomFlag}</h1>
+				<button onClick={handleClick}>
+		      You clicked {countRef.current} times
+		    </button>
+		 </div>
+  );
+}
+```
+
+- 当你点击 `button` 的时候，会发现页面并没有更新 `countRef.current` 最新值，但是控制台中的 `countRef.current` 确每次会更新变化
+- `useRef` 会给你返回一个带有 `current` 属性的对象，你可以通过 `ref.current` 访问当前值。
+- `useRef` 与 `useState` 返回的状态不同之处就是：`ref.current` 的值是**可读可变**的，你可以直接通过 `ref.current = newValue`，进行更改。
+- 并且更改 `useRef` 不会触发组件的重新渲染，这是**因为 `react` 没有对 `ref` 的值进行 `track` 操作**。
+
+如果使用 useState:
+
+```jsx
+// 1. 从 react 中导出 useState hook，并在函数组件中调用
+import { useState } from 'react';
+
+export default function Counter() {
+  // 2. 调用 useState 并进行初始化
+  const [count, setCount] = useState(0);
+
+  function handleClick() {
+    // 3. 当前值发生变化，触发组件的重新渲染
+    setCount(count + 1);
+  }
+	// 用于判断是否重新渲染
+	const randomFlag = Math.floor(Math.random()* 10000000000000)
+
+  return (
+	   <div>
+				<h1 style={{ color: 'pink' }}>{randomFlag}</h1>
+				<button onClick={handleClick}>
+		      You clicked {count} times
+		    </button>
+		 </div>
+  );
+}
+```
+
+- 点击 `button` 会重新渲染，可以看到变化，这是因为 `React` 会跟踪 `state`
+
+通常我们会在哪种情况下使用 `useRef`：
+
+- 当你需要操作 `DOM` 的时候，可以使用 `ref` 保持对 `DOM` 的引用
+- 当你需要使用*计时器*时，可以保持对*计时器*的引用，以保证在恰当的时机可以重置*计时器*
+- 当你需要记录一些不影响组件重新渲染的状态时。
+
+### 操作 DOM
+
+在业务需求中，经常会遇到操作 `DOM` 的场景，比如：滚动视图到指定位置、表单获取焦点、移动 `DOM` 位置、调整 `DOM` 大小等等。这种情况下就可以使用 `useRef` 钩子去保存对 `DOM` 对象的引用。
+
+引用的方式一般分为两种：
+
+1. 直接引用组件自身的 `DOM` 对象
+2. 引用子组件的 `DOM` 对象
+
+**1. 引用组件自身的 `DOM` 对象**
+
+```jsx
+import { useRef } from 'react';
+
+export default function Form() {
+	// 1. 声明 ref 变量
+  const inputRef = useRef(null);
+
+  function handleClick() {
+		// 3. 通过 current 属性访问 DOM 方法
+    inputRef.current.focus();
+  }
+
+  return (
+    <>
+			{/* 绑定 ref 属性 */}
+      <input ref={inputRef} />
+      <button onClick={handleClick}>
+        Focus the input
+      </button>
+    </>
+  );
+}
+```
+
+- 通过给 `HTML` 标签绑定一个 `ref` 属性，来实现 `DOM` 引用
+
+**2. 访问子组件的 DOM 节点**
+
+```jsx
+import { forwardRef, useRef } from 'react';
+
+// 1. 需要使用 forwardRef 包裹子组件
+const MyInput = forwardRef((props, ref) => {
+	// 2. 绑定 ref 属性
+  return <input {...props} ref={ref} />;
+});
+
+export default function Form() {
+	// 1. 声明 ref 变量
+  const inputRef = useRef(null);
+
+  function handleClick() {
+		// 3. 通过 current 属性访问 DOM 方法
+    inputRef.current.focus();
+  }
+
+  return (
+    <>
+			{/* 2. 传递 ref 属性 */}
+      <MyInput ref={inputRef} />
+      <button onClick={handleClick}>
+        Focus the input
+      </button>
+    </>
+  );
+}
+```
+
+- 需要从 `React` 中导出 `forwardRef` API，将子组件传递给 `forwardRef`
+- 父组件将 ref 变量 传递给子组件，子组件绑定 ref 属性至目标标签
+
+### 最佳实践
+
+- **将 `refs` 作为 `react` 的一个逃生舱**。当你需要调用 React 外部系统或者浏览器的一些原生 `API` 的时候，`refs` 是非常有用的。但是当你的组件中有很多逻辑和数据流需要依赖 `ref` 的值时，你需要重新思考你的编码方式。
+- 在**渲染时（rendering 阶段）**读取或者更改 `ref` 的值，如果有些信息需要在渲染时用到，则使用 `state` 代替，因为 React 不知道 ref.current 何时会发生改变。在渲染时依赖 ref.current 会使你的组件行为无法预测。
+- `React` 对 `state` 的限制不会作用于 `refs`。例如 `***state` 的行为在每次渲染时更像是一张快照并且不会同步更新***。但是 `ref` 的值是同步立即改变的。因为 `ref` 本身是一个常规类型的 `JavaScript Object`
+
+当你使用 `ref` 时不必担心如何避免状态变化。只要你没有在渲染阶段使用可变的 `ref` 就行。`React` 并不关心你在 `ref.current` 上做的任何操作。
+
+### refs vs state
+
+- 返回值不同：
+    - `useRef` 钩子返回的是一个带有 `current` 属性的常规 `JavaScript` 对象，可读可变
+    - `useState` 钩子返回的是一个数组，数组第一项状态可读不可变，只能通过第二项去更改状态
+- `Track` 情况不同：
+    - `refs` 的值不会被 React 跟踪，所以改变 `refs` 不会触发重新渲染
+    - `state` 是每次改变都会触发重新渲染
+- 可保存的值些许不同：
+    - 相较于 `useState` 钩子，`useRef` 可以用于保存对 `DOM` 的引用。
+
+### React 何时更新 refs
+
+在 `React` 中，每次更新会分为两个阶段：
+
+- 渲染期间，`React` 会调用组件函数计算出哪些内容应该渲染到视图上
+- `commit` 期间，`React` 会将计算出来的 `DOM` 更新到真实的 `DOM` 上
+
+通常情况下，你不想在渲染过程中访问 `refs`。这也适用于持有 `DOM` 节点的 `ref`。在第一次渲染期间，`DOM` 节点还没有创建，因此 `ref.current` 将为 `null`。在渲染更新阶段，`DOM` 节点还没有更新。所以在渲染更新过程中读取还为时过早。
+
+`React` 在会在 `commit` 阶段设置 `ref.current`。在更新 `DOM` 之前，`React` 将受影响的 `ref.current` 值设置为 `null`。更新 `DOM` 之后，`React` 立即将它们设置为相应的 `DOM` 节点。
+
+### 总结
+
+- `Refs` 是一个逃生舱，用来保存不用于渲染期间的值。
+- `Refs` 是一个常规 `JavaScript` 对象，它只有一个名为 `current` 的属性，你可以读取或设置该属性。
+- 你可以通过调用 `useRef` 钩子要求 `React` 给你一个引用。
+- 与状态一样，引用允许你在组件重新渲染之间保留信息。
+- 与 `state` 不同，设置 `ref` 的当前值不会触发重新呈现。
+- 不要在渲染期间读或写 `ref.current` 。这使得你的组件行为难以预测。
+
+# useEffect 由浅入深
+
+- 为什么称为副作用？
+- 为什么你可能并不需要使用 useEffect ?
+- Effects 的声明周期
+- 如何移除不必要的依赖？
+- 
+
+
+
+一些组件需要与外部系统进行同步操作。例如，你或许想基于 `React` 状态去控制一个非 `React` 的组件，比如与服务端建立链接、当组件渲染到视图的时候，发送一份性能分析日志或进行埋点操作。`Effects` 允许你在渲染之后运行一些代码，以便你可以将组件与 `React` 外部的某些系统同步。
+
+## 什么是 `Effects`？它们与事件处理函数有何不同之处？
+
+在了解 `Effects` 之前，你必须熟悉 `React` 组件内部的两种类型的逻辑：
+
+- **渲染期间执行的代码(主要负责描述 `UI`)会一直存在于你的组件顶层**。
+    - 这部分代码在 React 每次调用你的函数组件时都会被执行。
+    - 在函数组件顶层你可以获取到 `props` 、`state`，并对其进行一些计算转换等操作，并且返回视图所需渲染的 `JSX` 结构。
+    - 顶层代码必须是纯函数。像一个数学方程式，仅负责计算结果，而不做其他任何事情。
+- **事件处理函数(主要负责交互或进行一些逻辑判断)是组件内的嵌套函数**。
+    - 这部分代码一般需要通过用户的交互操作执行，比如输入、点击、滚动、拖动等等。
+    - 它们主要负责执行交互任务。事件函数可以更新字段、发起 `HTTP` 请求、进行页面导航。
+    - 这些逻辑通常会包含**副作用（因为他们影响到组件的状态），**通常由用户的交互行为所触发。
+
+而造成这种变化的行为，我们称为 **副作用**。
+
+**`Effects` 可以让你声明由渲染过程自然引起的副作用，而不是事件函数引起的副作用。**
+
+例如在 `ChatRoom` 组件中发送一条信息是一个事件，因为它是由用户具体的点击操作引起的。
+
+而与服务器建立链接是一个 `effect`，因为它是由于 `ChatRoom` 组件从创建到被渲染至视图的过程而自然引发的一个事件。因为只要组件出现在视图上就需要与服务器建立连接，而不是由用户的哪个交互操作触发的。
+
+`Effects` 在视图更新结束后的渲染进程结束时运行，这对于同步 `React` 组件与外部系统是非常好的时机。
+
+不要急于在组件中添加 `Effects` 。请记住，`Effects` 通常用于“跳出” `React` 代码，并与一些外部系统同步。这包括浏览器 api、第三方小部件、网络等等。如果你的 Effect 仅根据其他状态调整某些状态，则可能不需要 `Effect`。
+
+## 如何写一个 Effect
+
+下面用一段控制视频播放暂停的组件实现过程进行演示。
+
+### 第一步：在 useEffect 钩子中声明 Effect
+
+`VideoPlayer` 组件：
+
+```jsx
+function VideoPlayer({ src, isPlaying }) {
+  // TODO: 我们希望在这里通过 isPlaying 属性去控制视频的播放或者暂停
+  return <video src={src} />;
+}
+```
+
+在 `VideoPlayer` 组件中，我们期望通过 `isPlaying` 属性去控制视频的播放或者暂停。
+
+然而 `HTML` 的 `video` 标签并没有  `isPlaying` 属性，如果想控制视频播放效果，只能通过调用 `video` `DOM` 对象的 `play`() & `pause`() 方法实现。既然如此，那我们可能会通过判断 `isPlaying` 属性去调用 `play`() 或 `pause`() 方法。
+
+为此我们需要通过 `useRef` 钩子获取 `video` 节点，并判断属性执行方法。
+
+```jsx
+import { useState, useRef, useEffect } from 'react';
+
+function VideoPlayer({ src, isPlaying }) {
+  // 声明 ref 变量
+  const ref = useRef(null);
+	
+  // 通过判断 isPlaying 属性去调用 play() 或 pause() 方法
+  if (isPlaying) {
+    ref.current.play();
+  } else {
+    ref.current.pause(); 
+  }
+
+  return <video ref={ref} src={src} loop playsInline />;
+}
+
+export default function App() {
+  const [isPlaying, setIsPlaying] = useState(false);
+  return (
+    <>
+      <button onClick={() => setIsPlaying(!isPlaying)}>
+        {isPlaying ? 'Pause' : 'Play'}
+      </button>
+      <VideoPlayer
+        isPlaying={isPlaying}
+        src="https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4"
+      />
+    </>
+  );
+}
+
+```
+
+然而执行上面的代码，你会发现报错。
+
+这是因为我们在**函数组件顶层**使用了 `ref` 去操作 `DOM` 方法，这在 `React` 中是不允许的。在 `React` 中，渲染阶段计算返回的 `JSX` 必须是纯操作，整个计算过程不能有副作用，比如操作 `DOM`。 
+
+为了解决这个问题，我们应该将带有副作用的操作：执行 `DOM` 方法，放在 `useEffect` 钩子中。
+
+```jsx
+import { useState, useRef, useEffect } from 'react';
+
+function VideoPlayer({ src, isPlaying }) {
+  // ...
+  // 在 useEffect 钩子中声明副作用代码
+  useEffect(() => {
+    if (isPlaying) {
+      ref.current.play();
+    } else {
+      ref.current.pause();
+    }
+  });
+
+  // ...
+}
+```
+
+`完成上面代码`，你会发现组件已经可以正常渲染。点击 `Play` 按钮可以控制视频的播放暂停。
+
+还有需要说明的是，每次 `VideoPlayer` 组件渲染的时候，`React` 会更新视图，然后再执行 `useEffect` 钩子中的代码。换句话说就是：**`React` 将 `useEffect` 中的代码延迟到了渲染结果显示在了视图之后执行**。
+
+也就是说，当 `App` 组件被渲染或更新到视图上时，发生了下面的操作：
+
+1. 首先 `React` 确保绑定了指定属性的 `video` 渲染到视图上
+2. 然后 `React` 会执行 `useEffect` 中带有副作用的代码
+3. 最终，副作用代码会根据 `isPlaying` 属性执行 `play`() 或 `pause`() 方法。
+
+### 第二步：声明依赖项数组
+
+默认情况下，每次组件渲染后都会执行 `useEffect` 钩子中的代码。但是有时候你并不想这么做，因为：
+
+- 有时频繁执行副作用代码，会导致应用性能变差，渲染变慢。
+  - 比如说你在副作用进行的是链接服务器操作，但是只想建立一次链接，因为频繁链接会消耗流量，影响性能
+- 有时频繁执行会造成不符合预期情况的效果。
+  - 比如你想做一个渐隐的动画效果，但需要仅当组件第一次出现时触发下。因为重复的动画效果会影响用户操作体验。
+
+为了演示这个问题，改变下上面的示例：
+
+```jsx
+import { useState, useRef, useEffect } from 'react';
+
+function VideoPlayer({ src, isPlaying }) {
+  const ref = useRef(null);
+
+  useEffect(() => {
+    if (isPlaying) {
+      console.log('Calling video.play()'); // 输入日志
+      ref.current.play();
+    } else {
+      console.log('Calling video.pause()'); // 输入日志
+      ref.current.pause();
+    }
+  });
+
+  return <video ref={ref} src={src} loop playsInline />;
+}
+
+export default function App() {
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [text, setText] = useState('');
+  
+  return (
+    <>
+    	{/* 更新父组件的状态 */}
+      <input value={text} onChange={e => setText(e.target.value)} />
+
+      <button onClick={() => setIsPlaying(!isPlaying)}>
+        {isPlaying ? 'Pause' : 'Play'}
+      </button>
+      <VideoPlayer
+        isPlaying={isPlaying}
+        src="https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4"
+      />
+    </>
+  );
+}
+
+```
+
+- 在父组件中添加了一个输入框，用于更新 `text` 的状态
+- 在子组件的 `Effect` 中添加了 `console.log` ，用于观察是否被执行
+
+当你在父组件的输入框中输入文本时，会注意输入会导致子组件的 Effect 重新运行。而我们期望的是 `App` 无关状态的改变并不会影响到 `VideoPlayer` 组件的副作用。
+
+这时，你可以通过给 `useEffect` 钩子传递第二个参数：依赖数组，作为参数。以告诉 `React` 跳过不必要的 `Effect` 执行。
+
+```jsx
+function VideoPlayer({ src, isPlaying }) {
+ 	// ...
+
+  useEffect(() => {
+    // ...
+  }, []);
+
+  // ...
+}
+```
+
+如果你有使用 `eslint-plugin-react-hooks` 插件的话，会看到页面提示 `useEffect` 出现依赖丢失的提示信息。
+
+这表明你需要在数组中添加 `Effect` 中使用到的依赖项：
+
+```jsx
+  useEffect(() => {
+    if (isPlaying) { // It's used here...
+      // ...
+    } else {
+      // ...
+    }
+  }, [isPlaying]); // ...so it must be declared here!
+```
+
+添加了依赖项之后，就是告诉 `React` 只有依赖项中的数据发生变化的时候才去执行 `Effect`。现在在 `input` 标签中输入内容，就不会看到控制台有日志输出了。
+
+> 依赖数组中可以包含多个依赖项，只要依赖数组有一项状态发生改变，不同与上一次的渲染，则 `React` 就会重新渲染。`React` 内部会使用 `Object.is` API 对依赖项进行比较。
+
+### 第三步：Effect 可以返回一个 cleanup 函数
+
+被 `useEffect` 钩子包裹的 `Effects` 代码可以返回一个函数，**这个函数会在组件被卸载的时候被执行**。
+
+有以下应用场景：
+
+- 清除计时器
+
+```jsx
+function IntervalCom() {
+ 	// ...
+
+  useEffect(() => {
+    // ...
+    const timer = setInterval(() => {
+      // 做一些事情
+    })
+    return () => {
+			clearInterval(timer)
+    }
+  }, []);
+
+  // ...
+}
+```
+
+- 重置 Flag 
+
+```jsx
+let flag = true
+function MyComponent() {
+ 	// ...
+  useEffect(() => {
+    // ...
+    if(flag) {
+			// 做一些事情...
+      flag = false
+    }
+    return () => {
+			flag = true
+    }
+  }, []);
+
+  // ...
+}
+```
+
+- 监听事件
+
+```jsx
+function MyComponent() {
+  
+  useEffect(() => {
+    function handleScroll(e) {
+      console.log(e.clientX, e.clientY);
+    }
+    window.addEventListener('scroll', handleScroll);
+    
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
+  // ...
+}
+
+```
+
+从上面几个场景，可以看出。`cleanup` 函数相当于组件的 `unmount` 生命周期钩子，但是在函数组件中 `cleanup` 函数主要职责在于停止当前 `Effect`。
+
+> 另外 `React` `18` 之后，默认在开发模式下，会在组件初始化的时候， `React` 会执行两次 `Effect`，主要是为了验证你的 `Effect` 写的是否规范，符合预期。
+
+###  useEffect 使用场景
+
+- 请求服务端数据
+
+```jsx
+useEffect(() => {
+  let ignore = false;
+
+  async function startFetching() {
+    const json = await fetchTodos(userId);
+    if (!ignore) {
+      setTodos(json);
+    }
+  }
+
+  startFetching();
+
+  return () => {
+    ignore = true;
+  };
+}, [userId]);
+```
+
+注意 useEffect 接受的 Effect 函数不能是异步的。如果需要进行异步请求，必须在其内部进行一层包裹。
+
+- 触发动画
+
+```js
+useEffect(() => {
+  const node = ref.current;
+  node.style.opacity = 1; // Trigger the animation
+  return () => {
+    node.style.opacity = 0; // Reset to the initial value
+  };
+}, []);
+```
+
+- 进行埋点
+
+```js
+useEffect(() => {
+  trackEvent(param); // Sends a track request
+}, [param]);
+```
+
+- 操作一些第三方库，比如地图、对话框等等
+
+```jsx
+useEffect(() => {
+  const map = mapRef.current;
+  map.setZoomLevel(zoomLevel);
+}, [zoomLevel]);
+```
+
+### 避免无限循环
+
+我们前面说过，如果在 `useEffect` 中使用了某些 `state` 时，必须在其依赖数组中进行声明。那么你可能会遇到这种情况
+
+```jsx
+function MyComponent() {
+  const [state, setState] = useState({
+    //...
+  })
+  useEffect(() => {
+    // 在这里你可能会进行一些异步操作，然后更新 state
+    setState({
+      ...state,
+      ...otherState
+    })
+  }, [state]);
+  // ...
+}
+```
+
+上面这种情况就会导致陷入无限循环的过程中。这是因为：
+
+- `useEffect` 会在视图更新后执行，当组件已经渲染到视图后，由于 `useEffect` 中进行了状态更新的操作
+- 会导致组件进入下一轮的循环过程：`render` → `commit` → `painting` → `render` → `commit` ...
+- 如此往复陷入死循环
+
+如果遇到这个问题，那你需要考虑下，`useEffect` 中的代码真的有必要放在 `useEffect` 钩子中吗？能不能放在事件函数中？
+
+
+
+----
+
+
+
+### 非 Effect 需要再初始化阶段运行，则移动到组件外部
+
+当应用初始化的时候，有些逻辑仅需要运行一次，那么你可以选择将其放在组件外部。
+
+```jsx
+if (typeof window !== 'undefined') { // Check if we're running in the browser.
+  checkAuthToken();
+  loadDataFromLocalStorage();
+}
+
+function App() {
+  // ...
+}
+```
+
+### 非 Effect：购买产品
+
+有时，即使你写了一个 cleanup 函数，也无法避免一些运行两次 Effect 两次所引发的后果。例如，下面的代码，在 Effect 中会发送一个购买产品的 POST 请求：
+
+```jsx
+useEffect(() => {
+  // 🔴 Wrong: This Effect fires twice in development, exposing a problem in the code.
+  fetch('/api/buy', { method: 'POST' });
+}, []);
+```
+
+你并不想购买两次产品。然而这也是为什么你不能将请求逻辑放在 Effect 中的原因。试想一下，如果用户跳转到了另一个页面然后又回退到本页面，你的 Effect 将运行两次，然而你不想当用户访问页面的时候进行两次购买操作，你想仅在用于点击 button 的时候发起 购买的请求。
+
+由此可以看出，购买操作不是由渲染引起的，而是由一个具体的点击交互操作引起的。因为点击仅会进行一次，所以他应该也仅运行一次。因此，你应该将发起购买请求的代码逻辑从 Effect 中移除，将其放到购买按钮触发的事件函数中:
+
+```jsx
+  function handleClick() {
+    // ✅ Buying is an event because it is caused by a particular interaction.
+    fetch('/api/buy', { method: 'POST' });
+  }
+```
+
+这说明如果重新挂载的操作影响到拟组建的逻辑，这种情况通常存在 bug。从用户的视角来看，访问一个页面，然后跳转，然后再返回，不应该有所变化。React 在开发环境下的重新挂载逻辑，保证了你的组件不会破坏这个规则。
+
+### useState & useEffect 一起使用
+
+下面的例子可以让你通过实践来感受下 `Effect` 是如何工作的。
+
+代码会在 `Effect` 运行一个计时器， `setTimeout` 在三秒后调用 `console` 去打印 `input` 中的文本。`cleanup` 函数会取消 `timeoutId`，点击 `Mount the component` 开始。
+
+`Playground` 组件：通过在 setTimeout 中打印日志，来观察 `Effect` 的执行情况
+
+```jsx
+import { useState, useEffect } from 'react';
+
+function Playground() {
+  const [text, setText] = useState('a');
+
+  useEffect(() => {
+    function onTimeout() {
+      console.log('⏰ ' + text);
+    }
+
+    console.log('🔵 Schedule "' + text + '" log');
+    const timeoutId = setTimeout(onTimeout, 3000);
+
+    return () => {
+      console.log('🟡 Cancel "' + text + '" log');
+      clearTimeout(timeoutId);
+    };
+  }, [text]);
+
+  return (
+    <>
+      <label>
+        What to log:{' '}
+        <input
+          value={text}
+          onChange={e => setText(e.target.value)}
+        />
+      </label>
+      <h1>{text}</h1>
+    </>
+  );
+}
+```
+
+`App` 组件：用于控制挂载或卸载 `Playground` 组件
+
+```jsx
+import { useState } from 'react';
+
+export default function App() {
+  const [show, setShow] = useState(false);
+  return (
+    <>
+      <button onClick={() => setShow(!show)}>
+        {show ? 'Unmount' : 'Mount'} the component
+      </button>
+      {show && <hr />}
+      {show && <Playground />}
+    </>
+  );
+}
+
+```
+
+- 首先你会看到控制台输出了：`Schedule “a” log`→`Cancel “a” log`→`Schedule “a” log`，三秒之后输出 `“a”`
+- 正如你在上文所了解到的，第一次打印的 `Schedule “a” log`→`Cancel “a” log` 是为了 `React` 在开发过程中重新挂载组件，以验证你已经正确地实现 `cleanup` 函数。
+- 现在尝试输入，输入 `abc`。如果你做的足够快，你会看到 `Schedule “ab” log` 紧接着是 `Cancel “ab” log` 和 `Schedule “abc” log`。
+- **`React` 总是会在执行下一次渲染的 `Effect` 之前，先执行 `cleanup` 函数清除上一次渲染的 `Effect`。**
+- 这就是为什么即使你在 `input` 标签中快速输入，每次最多只调度一次 `setTimeout` 。编辑输入几次，观察控制台，感受一下 `Effects` 是如何被清理的。
+- 然后你再输入一些内容，并且立即点击 `“Unmount the component”`。
+- 你会注意到 `cleanup` 函数会清理最后一次渲染的 `Effect`。
+- 最后，你可以尝试编辑上面的组件，注释掉 `cleanup` 函数，此时`timeout` 不会被取消。
+- 然后尝试快速的输入 `abcde`。你猜在三秒后发生什么？在 `timeout` 中的 `console` 是否会只打印五次 `abcde` 吗？
+- 实际上，在三秒之后你会看到控制台输出了 logs (`a`, `ab`, `abc`, `abcd`, and `abcde`)，而不是五次 `abcde`。
+- **每个 `Effect` 都会从与之对应的渲染中获取文本值。**
+- 文本状态的改变并不重要：一个带有 `text = ab` 状态渲染中 `Effect`，所能获取的只能是 `text = ab`。
+- 换句话说 **每次渲染的 `Effect` 是相互隔离的。**
+
+---
+
+### 总结：
+
+- 不像事件函数，`Effect`的执行是由渲染事件本身自然引起的而不是有一个特定的交互行为引起的。
+- `Effect` 可以让你的组件与外部系统进行同步操作
+- 默认情况下，`Effect` 会在每次渲染之后运行
+- 如果 `Effect` 所有的依赖值在两次渲染之间没有变换，则`React` 不会执行 `Effect`
+- 你不能选择你的依赖，依赖是由 `Effect` 中的代码确定的
+- 一个空的依赖数组对应于组件的 `mount` 阶段。也就是初次渲染到视图的时候
+- 当开发环境中，`React` 会 `mount` 两次组件，已验证你的 `Effect` 是否符合规范，
+-  `Effect `可以返回一个 `cleanup` 函数，这个函数会在组件卸载的时候执行
+
+
+
+## 移除不必要的 useEffect
+
+通过上面的简单学习，你可能会发现在 `useEffect` 中你能做很多事情，但是这很可能导致 `useEffect` 滥用，结果就是影响到你整个应用的性能表现和可维护性。
+
+
+
+- **不要为了渲染在 `Effect` 中更新数据。**
+  - 例如，我们假设你想在渲染之前过滤一个 `list`，你或许想当 `list` 改变的时候，通过写一个 `Effect` 去更新 `state` 变量。
+  - 然而这是没用的。当你更新你的组件状态的时候，`React` 会首先调用你的组件函数去计算出需要渲染到视图上的内容，然后 `React` 将发生变化的部分 `commit` 到 `DOM` 上，更新视图，最后 `React` 才会运行你的 `Effect`。
+  - 如果此时你在 `Effect` 内部更新 `state` 变量，`React` 会重启上面整个过程。
+  - 为了避免不必要的渲染，最好在你的组件顶层进行数据转换。无论何时 `state` 或者 `props` 发生变化，顶层代码都会自动重新运行。
+
+- **不要在 `Effect` 中处理用户交互事件**。
+  - 例如，我们假设你想发送一个 `POST` 请求，并且当用户购买产品的时候展示提示信息，当 点击 购买按钮的时候，你想确切的知道发生了什么。
+  - 但当 `Effect` 运行时，你不知道用户做了什么(例如，用户点击了哪一个 `button` )。
+  - 这就是为什么你必须在**对应的事件处理函数中处理用户事件**。
+
+
+useEffect 主要用来与外部系统进行同步操作，
+
+为了帮助你获取一个正确的感知，让我们看一些相同概念的例子
+
+### 当需要基于 props 或者 state 更新 state 时
+
+假设你的组件有两个状态变量：`firstName` 与 `LastName`。
+
+- 你想通过链接这两个状态变量计算一个 `fullName`。
+- 而且，你想只要 `firstName` 或 `LastName` 发生变化，就去更新 `fullName`。
+- 你可能首先想到的可能是在添加一个 `fullName` 状态变量并且在 `Effect` 中去更新它。
+
+那么你可能这么写代码：
+
+```jsx
+function Form() {
+  const [firstName, setFirstName] = useState('Taylor');
+  const [lastName, setLastName] = useState('Swift');
+
+  // 🔴 避免: 多于的 state 和不必要的 Effect
+  const [fullName, setFullName] = useState('');
+  useEffect(() => {
+    setFullName(firstName + ' ' + lastName);
+  }, [firstName, lastName]);
+  // ...
+}
+```
+
+上面的操作就把简单事情搞复杂了。
+
+并且它的效率也很低：
+
+- 因为它首先会用一个已经过期的 `fullName` 值 (`fullName=''`) 进行整个渲染流程。
+- 渲染结束后，再立即用基于`firstName` 、 `lastName` 更新后的值 (`fullName='Taylor Swift'`) 重新渲染。
+
+让我们修改下代码：移除不必要的状态变量 `fullName` 和 `Effect`：
+
+```jsx
+function Form() {
+  const [firstName, setFirstName] = useState('Taylor');
+  const [lastName, setLastName] = useState('Swift');
+  // ✅ Good: 在渲染期间去计算 fullName
+  const fullName = firstName + ' ' + lastName;
+  // ...
+}
+```
+
+- **当有些值可以基于已存在的 `props` 或者 `state` 计算出来的时候，不要将其放在 `state` 中。而是利用渲染时去计算它。**当 `state` 或者 `props` 更新的时候，`React` 会重新调用 `Form` 函数组件以获取最新的 `JSX`，在这个过程中就会取执行函数组件顶层中的代码。
+- 这会使你的代码更快(避免了连续更新)、更简单(移除多于的代码)、更少的潜在 `bug`(可以避免不同状态变量之间不同步所导致的错误)。
+- 如果上面的代码给了你新的启发，那你可以用 `React` 的方式思考，在项目中哪些值应该放到 `state` 中。
+
+### 使用 useMemo 缓存渲染阶段的计算结果
+
+以一个 `TodoList` 组件为例，`TodoList` 组件会通过它 `props` 中的 `todos` 和 `filter` 属性，计算出 `visibleTodos`。你可能会想将结果通过 `useState` 存储在状态变量中，并在 `useEffect` 中更新它:
+
+```jsx
+function TodoList({ todos, filter }) {
+  const [newTodo, setNewTodo] = useState('');
+
+  // 🔴 避免: 不冗余的状态与不必要的 Effect
+  const [visibleTodos, setVisibleTodos] = useState([]);
+  useEffect(() => {
+    setVisibleTodos(getFilteredTodos(todos, filter));
+  }, [todos, filter]);
+
+  // ...
+}
+```
+
+就像上面的例子一样，这两个都是不需要且不高效的。
+
+1. 首先，移除 `state & Effect`：
+
+```jsx
+function TodoList({ todos, filter }) {
+  const [newTodo, setNewTodo] = useState('');
+  // ✅ 如果 getFilteredTodos 操作并不慢，放在 rendering 阶段即可
+  const visibleTodos = getFilteredTodos(todos, filter);
+  // ...
+}
+```
+
+在许多情况下，这段代码是 `OK` 的，可以正常运行! 但是可能 `getFilteredTodos()` 会很复杂、很慢，或者有很多事情做。
+
+在这种情况下，如果一些不相关的状态变量 (如`newTodo`) 发生了更改，你并不希望需要重新计算 `getFilteredTodos()`。
+
+2. 那你可以通过 `useMemo` 钩子缓存计算结果。通过性能开销昂贵的操作包裹在 `useMemo` 钩子中:
+
+```jsx
+import { useMemo, useState } from 'react';
+
+function TodoList({ todos, filter }) {
+  const [newTodo, setNewTodo] = useState('');
+  const visibleTodos = useMemo(() => {
+    // ✅ 只有当 todos 或者 filter 发生变换的时候才会执行 getFilteredTodos
+    return getFilteredTodos(todos, filter);
+  }, [todos, filter]);
+  // ...
+}
+```
+
+这个操作意思是告诉 `React`：**你不想重复运行 `useMemo` 包裹的函数，而是只有当 `todos` 或者 `filter` 发生变化的时候，再重新计算。**
+
+`React` 会在初始渲染的时候记住 `getFilteredTodos` 方法返回的值。
+
+- 在下一次渲染时，会检测 `todos` 和 `filter` 是否发生变化。
+
+- 如果他们遇上一次相同，`useMemo` 将会返回上一次它缓存的结果。
+- 如果不同，`React` 会重新调用被包裹的函数并且再次存储最新的计算结果。
+
+在 `useMemo` 中包裹的函数会在渲染期间运行，因此这只适用于**纯的计算操作**。
+
+### 当 prop 发生改变的时候重置所有 state
+
+ProfilePage 组件接受一个 userId 属性，当前页面包含一个评论输入框，并且你使用了一个 comment 作为状态变量，去存储输入框中的值。有一天，你会注意到一个问题：当你从一个简介切换到另一个时，comment 状态没有发生重置。结果，很容易不小心在错误的用户资料上发表评论。为了修复这个问题，你想只要 userId 发生变化的时候就清空 comment 状态变量：
+
+```jsx
+export default function ProfilePage({ userId }) {
+  const [comment, setComment] = useState('');
+
+  // 🔴 Avoid: Resetting state on prop change in an Effect
+  useEffect(() => {
+    setComment('');
+  }, [userId]);
+  // ...
+}
+```
+
+这个操作是无效的，因为 ProfilePage 和他的子组件在第一次渲染时会使用一个旧的值，并且再次渲染。并且他也是复杂的，因为你需要在 ProfilePage 每个具有类似状态的组件中执行词操作。例如如果 comment UI 是嵌套的，你或许想要清除嵌套的 comment 状态。
+
+然而，你可以通过给组件一个明确的 key 来告诉 React，每个用户的 profile 文件从概念上就是不同的。
+
+将你的组件拆分为两个组件，并且通过从外层组件向内层组件传递 key 属性：
+
+```jsx
+export default function ProfilePage({ userId }) {
+  return (
+    <Profile
+      userId={userId}
+      key={userId}
+    />
+  );
+}
+
+function Profile({ userId }) {
+  // ✅ This and any other state below will reset on key change automatically
+  const [comment, setComment] = useState('');
+  // ...
+}
+```
+
+正常情况下，当相同的组件渲染到相同的位置时，React 会维护组件状态。当选择将 userId 作为 key 传递给 Profile 组件时，你其实是在要求 React 将两个 Profile 作为不同的组件对待，因为两个不同的组件不会共享状态。只有 userId 发生变化，React 就会重置 DOM 并且重置 Profile 组件及其子组件状态。comment 状态也会在两个 profile 组件切换的时候自动清除。
+
+### 当 props 发生变化的时候调整 state
+
+有时你或许想在 props 发生变换的时候重置或者调整部分 state，而不是全部。
+
+List 组件接受一个 items 数组作为 prop。并且维持通过 selection 状态变量维持被选中的 item。
+
+你想要在 items 发生变化的时候重置 selection 初始值为 null：
+
+```jsx
+function List({ items }) {
+  const [isReverse, setIsReverse] = useState(false);
+  const [selection, setSelection] = useState(null);
+
+  // 🔴 Avoid: Adjusting state on prop change in an Effect
+  useEffect(() => {
+    setSelection(null);
+  }, [items]);
+  // ...
+}
+```
+
+这也不是好主意。每次 items 发生变化，List 组件和他的子组件将首先使用一个失效的 selection 值进行渲染。然后 React 会更新 DOM 并且运行 Effect。最终调用 setSelection(null) 触发 List 组件和他子组件的另一次渲染，重启整个渲染过程。
+
+你应该删除 Effect ，改为直接在渲染阶段调整状态：
+
+```jsx
+function List({ items }) {
+  const [isReverse, setIsReverse] = useState(false);
+  const [selection, setSelection] = useState(null);
+
+  // Better: Adjust the state while rendering
+  const [prevItems, setPrevItems] = useState(items);
+  if (items !== prevItems) {
+    setPrevItems(items);
+    setSelection(null);
+  }
+  // ...
+}
+```
+
+从上一次渲染中存储信息可能有些难以理解，但是他相较于在 Effect 中更新 state 更好。在上面例子中， setSelection 会在渲染期间直接调用。React 将在 List 退出后立即使用返回语句重新渲染它。到那时，React 还没有渲染 List 子节点或更新 DOM，因此这让 List 子元素跳过呈现陈旧的 selection 值。
+
+当你在渲染阶段更新组件，React 丢弃返回的 JSX 并立即重试渲染。为了避免非常缓慢的级联重试，React 只允许你在渲染期间更新相同组件的状态。如果你在渲染期间更新了另一个组件的状态，你将看到报错。像 items !== prevItems 可以避免死循环。您可以像这样调整状态，但任何其他副作用(如更改DOM或设置超时)都应该保留在事件处理程序或 Effects 中，以保持组件的可预测性。
+
+**尽管此模式比Effect更有效，但大多数组件也不需要它。**无论如何，根据 props 或其他 state 调整状态都会使数据流更难以理解和调试。总是检查是否可以用一个 key 重置所有状态或在渲染期间计算所有内容。
+
+例如，不存储(和重置)所选 item，你可以存储所选 item ID:
+
+```jsx
+function List({ items }) {
+  const [isReverse, setIsReverse] = useState(false);
+  const [selectedId, setSelectedId] = useState(null);
+  // ✅ Best: Calculate everything during rendering
+  const selection = items.find(item => item.id === selectedId) ?? null;
+  // ...
+}
+```
+
+现在根本不需要“调整”状态了。如果具有选中 id 的 item 在数组中，则保持选中状态。如果不是，则在渲染期间由于没有与之匹配的 id 会返回 null，这个行为有点不同，但可以说它更好，因为现在对 items 的很多更改操作都保存了所选数据。
+
+### 在事件处理函数中分享逻辑
+
+假设你有一个带有两个按钮(Buy和Checkout)的产品页面，这两个按钮都允许你购买该产品。当用户将产品添加到购物车的时候，你想显示一个通知。在两个 按钮的点击事件处理函数中都添加 showNotification 方法的调用有些重复，因此你或许想将这块逻辑代码放到 Effect 中：
+
+```jsx
+function ProductPage({ product, addToCart }) {
+  // 🔴 Avoid: Event-specific logic inside an Effect
+  useEffect(() => {
+    if (product.isInCart) {
+      showNotification(`Added ${product.name} to the shopping cart!`);
+    }
+  }, [product]);
+
+  function handleBuyClick() {
+    addToCart(product);
+  }
+
+  function handleCheckoutClick() {
+    addToCart(product);
+    navigateTo('/checkout');
+  }
+  // ...
+}
+```
+
+这个 Effect 是不需要的。他很可能造成 bug。例如，我们假设你的应用在页面重新加载的时候已经缓存了购物车中的数据。如果你添加一个产品到购物车然后刷新页面，这提示信息会再次出现。上面的这种写法会让你的提示信息在每次刷新产品页面的时候都出现。因为 product.isInCart 在页面加载的时候已经是 true 了。因此 Effect 会再次调用 showNotification 方法。
+
+**当你不确定某些代码是该放到 Effect 中还是事件处理函数中时，你可以问问自己这些代码为什么运行。Effect 中仅仅适合运行那些需要将组件展示给用户的代码**。在上面的例子中，提示信息应该出现是因为用户按下了按钮，而不是因为页面显示了！因此删除 Effect 并且将需要分享的逻辑放到一个函数中，然后你在两个事件处理函数中调用即可。
+
+```jsx
+function ProductPage({ product, addToCart }) {
+  // ✅ Good: Event-specific logic is called from event handlers
+  function buyProduct() {
+    addToCart(product);
+    showNotification(`Added ${product.name} to the shopping cart!`);
+  }
+
+  function handleBuyClick() {
+    buyProduct();
+  }
+
+  function handleCheckoutClick() {
+    buyProduct();
+    navigateTo('/checkout');
+  }
+  // ...
+}
+```
+
+上面的代码移除了 Effect 并且修复了 bug。
+
+### 发送 POST 请求
+
+下面的 Form 组件会发送两个不同的 POST 请求。当组件挂载的时候会发送一个分析请求。当你填完表格并且点击 提交 按钮的时候，会向 /api/register 发送一个 POST 请求。
+
+```jsx
+function Form() {
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
+
+  // ✅ Good: This logic should run because the component was displayed
+  useEffect(() => {
+    post('/analytics/event', { eventName: 'visit_form' });
+  }, []);
+
+  // 🔴 Avoid: Event-specific logic inside an Effect
+  const [jsonToSubmit, setJsonToSubmit] = useState(null);
+  useEffect(() => {
+    if (jsonToSubmit !== null) {
+      post('/api/register', jsonToSubmit);
+    }
+  }, [jsonToSubmit]);
+
+  function handleSubmit(e) {
+    e.preventDefault();
+    setJsonToSubmit({ firstName, lastName });
+  }
+  // ...
+}
+```
+
+让我们在这个例子中应用与上面相同的规则。
+
+发送分析日志的请求仍应该放在 Effect 中。因为 Form 组件需要展示。
+
+然而，向 /api/register 接口发送 POST 请求的事件不是由 Form 组件展示引起的。你仅仅想在一个具体的时间发起 POST 请求：当用户点击 button 时。它仅应该由特定的交互事件引起。删除第二个 Effect 并将 POST 请求移动到事件函数中：
+
+```jsx
+function Form() {
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
+
+  // ✅ Good: This logic runs because the component was displayed
+  useEffect(() => {
+    post('/analytics/event', { eventName: 'visit_form' });
+  }, []);
+
+  function handleSubmit(e) {
+    e.preventDefault();
+    // ✅ Good: Event-specific logic is in the event handler
+    post('/api/register', { firstName, lastName });
+  }
+  // ...
+}
+```
+
+当你选择将代码逻辑放在事件处理函数中还是 Effect 中时，其实主要问题是你应该回答：从用户的视角看这是哪个类型的逻辑？如果这块代码逻辑是由用户交互引起的，则应该放到事件处理函数中。如果是由用户看到组件渲染到视图的过程引起的，则应该放到 Effect 中。
+
+### 链式操作
+
+有时你或许需要链式触发 Effect，每个 Effect 会基于其他 state 调整一部分 state。
+
+```jsx
+function Game() {
+  const [card, setCard] = useState(null);
+  const [goldCardCount, setGoldCardCount] = useState(0);
+  const [round, setRound] = useState(1);
+  const [isGameOver, setIsGameOver] = useState(false);
+
+  // 🔴 Avoid: Chains of Effects that adjust the state solely to trigger each other
+  useEffect(() => {
+    if (card !== null && card.gold) {
+      setGoldCardCount(c => c + 1);
+    }
+  }, [card]);
+
+  useEffect(() => {
+    if (goldCardCount > 3) {
+      setRound(r => r + 1)
+      setGoldCardCount(0);
+    }
+  }, [goldCardCount]);
+
+  useEffect(() => {
+    if (round > 5) {
+      setIsGameOver(true);
+    }
+  }, [round]);
+
+  useEffect(() => {
+    alert('Good game!');
+  }, [isGameOver]);
+
+  function handlePlaceCard(nextCard) {
+    if (isGameOver) {
+      throw Error('Game already ended.');
+    } else {
+      setCard(nextCard);
+    }
+  }
+
+  // ...
+```
+
+在上面的代码中有两个问题。
+
+第一个问题是它非常低效：Game 组件及其子组件必须在 Effect 链中的每个 setter 调用之间重新渲染。在上面的例子中，实际情况是这个样的：
+
+setCard → 渲染 → setGoldCardCount → 渲染 → setRount → 渲染 → setIsGameOver → 渲染
+
+整个组件树产生了三次不必要的渲染。
+
+即使它可能并不慢，但是随着代码的发展，你也会遇到编写的“链”不符合新的需求的情况。想象一下，你正在添加一种方法来逐步回顾游戏移动的历史记录。你可以通过将每个状态变量更新为过去的值来实现这一点。然而，将卡片状态设置为过去的值将再次触发Effect链并更改正在显示的数据。这样的代码通常是僵硬而脆弱的。
+
+这种情况下，最好是在渲染期间计算你所需要的状态，并且在事件函数中重新调整 state。
+
+```jsx
+function Game() {
+  const [card, setCard] = useState(null);
+  const [goldCardCount, setGoldCardCount] = useState(0);
+  const [round, setRound] = useState(1);
+
+  // ✅ Calculate what you can during rendering
+  const isGameOver = round > 5;
+
+  function handlePlaceCard(nextCard) {
+    if (isGameOver) {
+      throw Error('Game already ended.');
+    }
+
+    // ✅ Calculate all the next state in the event handler
+    setCard(nextCard);
+    if (nextCard.gold) {
+      if (goldCardCount <= 3) {
+        setGoldCardCount(goldCardCount + 1);
+      } else {
+        setGoldCardCount(0);
+        setRound(round + 1);
+        if (round === 5) {
+          alert('Good game!');
+        }
+      }
+    }
+  }
+
+  // ...
+```
+
+上面的代码就高效很多。此外，如果你实现了一种查看游戏历史的方法，那么现在你就可以将每个状态变量设置为过去的移动，而不必触发调整每个其他值的 Effect 链。如果你需要在多个事件函数中复用逻辑，你可以将复用逻辑再单独提取为一个函数，然后调用它即可。
+
+技术在事件函数内部，状态的表现更像快照。例如，即使你调用了 setRound(round + 1) 之后，round 的值仍然是用户点击按钮时的状态。如果你需要为计算操作使用新值，手动定义它，比如 `const nextRound = round + 1`。
+
+在某些情况下，当不能直接在事件处理程序中计算下一个状态时。例如，想象一个具有多个下拉列表的表单，其中下一个下拉列表的选项依赖于前一个下拉列表的选择值。然后，选择 Effects 链获取数据是合适的，因为您需要与网络进行同步。
+
+### 初始化应用
+
+当 app 加载的时候，有些逻辑应该仅运行一次。你获取会将其放到组件的顶层 Effect 中：
+
+```jsx
+function App() {
+  // 🔴 Avoid: Effects with logic that should only ever run once
+  useEffect(() => {
+    loadDataFromLocalStorage();
+    checkAuthToken();
+  }, []);
+  // ...
+}
+```
+
+但是，您很快就会发现它在开发中运行了两次。这可能会导致一些问题——例如，可能会使*身份验证令牌*失效，因为该函数没有设计为被调用两次。一般来说，组件应该具有重新挂载的弹性。这包括顶层 App 组件。尽管在实际生产中可能永远不会重新安装，但在所有组件中遵循相同的约束可以更容易地移动和重用代码。如果某些逻辑必须在每次应用加载时运行一次，而不是每次组件挂载时运行一次，你可以添加一个顶层变量来跟踪它是否已经执行，并始终跳过重新运行它:
+
+```jsx
+let didInit = false;
+
+function App() {
+  useEffect(() => {
+    if (!didInit) {
+      didInit = true;
+      // ✅ Only runs once per app load
+      loadDataFromLocalStorage();
+      checkAuthToken();
+    }
+  }, []);
+  // ...
+}
+```
+
+你也可以在 app 渲染之前、模块初始化时运行它：
+
+```jsx
+if (typeof window !== 'undefined') { // Check if we're running in the browser.
+   // ✅ Only runs once per app load
+  checkAuthToken();
+  loadDataFromLocalStorage();
+}
+
+function App() {
+  // ...
+}
+```
+
+在导入组件时，顶层的代码只运行一次——即使它最终没有被渲染。为了避免在导入任意组件时出现变慢或令人惊讶的行为，不要过度使用此模式。将整个应用程序的初始化逻辑保留到根组件模块(如 App.js )或应用程序的入口模块中。
+
+### 当 state 变化的时候通知父组件
+
+假设你正在编写一个 Toggle 组件，其中有一个内部的 isOn 状态，可以是 true 也可以是 false。切换它有几种不同的方法(通过单击或拖动)。你想要在 Toggle 内部状态改变时通知父组件，所以你给组件提供可一个 onChange 事件，并在 Effect 中调用它:
+
+```jsx
+function Toggle({ onChange }) {
+  const [isOn, setIsOn] = useState(false);
+
+  // 🔴 Avoid: The onChange handler runs too late
+  useEffect(() => {
+    onChange(isOn);
+  }, [isOn, onChange])
+
+  function handleClick() {
+    setIsOn(!isOn);
+  }
+
+  function handleDragEnd(e) {
+    if (isCloserToRightEdge(e)) {
+      setIsOn(true);
+    } else {
+      setIsOn(false);
+    }
+  }
+
+  // ...
+}
+```
+
+就像之前一样，这并不理想。Toggle 首先会更新它的状态，React更新视图。然后 React 运行 Effect，它调用从父组件传递过来的onChange 函数。现在父组件将更新自己的状态，开始进行下一轮渲染。但是我们需要最好是一次性完成所有工作。
+
+删除 Effect，并在同一个事件处理程序中更新两个组件的状态:
+
+```jsx
+function Toggle({ onChange }) {
+  const [isOn, setIsOn] = useState(false);
+
+  function updateToggle(nextIsOn) {
+    // ✅ Good: Perform all updates during the event that caused them
+    setIsOn(nextIsOn);
+    onChange(nextIsOn);
+  }
+
+  function handleClick() {
+    updateToggle(!isOn);
+  }
+
+  function handleDragEnd(e) {
+    if (isCloserToRightEdge(e)) {
+      updateToggle(true);
+    } else {
+      updateToggle(false);
+    }
+  }
+
+  // ...
+}
+
+```
+
+使用这种方法，Toggle 组件及其父组件都会在事件中更新它们的状态。React 会将来自不同组件的一起进行 **批量更新**，因此结果将只有一个渲染。
+
+你也可以完全删除状态，而从父组件接收 isOn:
+
+```jsx
+// ✅ Also good: the component is fully controlled by its parent
+function Toggle({ isOn, onChange }) {
+  function handleClick() {
+    onChange(!isOn);
+  }
+
+  function handleDragEnd(e) {
+    if (isCloserToRightEdge(e)) {
+      onChange(true);
+    } else {
+      onChange(false);
+    }
+  }
+
+  // ...
+}
+```
+
+“状态提升”可以让父组件通过切换自身的状态来实现对 Toggle 的完全控制。这意味着父组件将必须包含更多的逻辑，但需要担心的总体状态会更少。每当你试图保持两个不同的状态变量同步时，这是一个信号，表明你应该尝试向上进行**状态提升**啦!
+
+### 将数据传递给父组件
+
+在 Child 组件中请求数据，然后在 Effect 中将数据传递给父组件：
+
+```jsx
+function Parent() {
+  const [data, setData] = useState(null);
+  // ...
+  return <Child onFetched={setData} />;
+}
+
+function Child({ onFetched }) {
+  const data = useSomeAPI();
+  // 🔴 Avoid: Passing data to the parent in an Effect
+  useEffect(() => {
+    if (data) {
+      onFetched(data);
+    }
+  }, [onFetched, data]);
+  // ...
+}
+```
+
+在 React 中，数据通常从父组件流向子组件。当你看到视图上出现错误时，你可以沿着组件链向上查找信息的来源，直到找到哪个组件传递了错误的 props 或具有错误的 state。当子组件在 Effects 中更新它们的父组件的状态时，数据流变得非常难以跟踪。因为子组件和父组件都需要相同的数据，所以让父组件获取这些数据，并将其传递给子组件:
+
+```jsx
+function Parent() {
+  const data = useSomeAPI();
+  // ...
+  // ✅ Good: Passing data down to the child
+  return <Child data={data} />;
+}
+
+function Child({ data }) {
+  // ...
+}
+```
+
+这更简单，并且保持数据流的可预测性:数据从父节点向下流到子节点。
+
+### useSyncExternalStore：订阅外部存储
+
+有时，组件可能需要订阅 React 状态之外的一些数据。这些数据可以来自第三方库或内置的浏览器 API。由于这些数据可以在 React 不知道的情况下发生变化，所以需要手动让组件订阅到它。这通常是通过 Effect 来完成的，例如:
+
+```jsx
+function useOnlineStatus() {
+  // Not ideal: Manual store subscription in an Effect
+  const [isOnline, setIsOnline] = useState(true);
+  useEffect(() => {
+    function updateState() {
+      setIsOnline(navigator.onLine);
+    }
+
+    updateState();
+
+    window.addEventListener('online', updateState);
+    window.addEventListener('offline', updateState);
+    return () => {
+      window.removeEventListener('online', updateState);
+      window.removeEventListener('offline', updateState);
+    };
+  }, []);
+  return isOnline;
+}
+
+function ChatIndicator() {
+  const isOnline = useOnlineStatus();
+  // ...
+}
+
+```
+
+在上面代码示例中，组件订阅外部数据存储(在本例中是浏览器导航器，浏览器 navigator.onLine API)。因为这个 API 在服务器上不存在(所以它不能用来生成初始的 HTML )，所以初始状态被设置为 true。只要该数据存储的值在浏览器中发生变化，组件就会更新其状态。
+
+虽然通常使用 Effects 来实现这一点，但 React 提供了一个专门用来订阅外部存储的 Hook：useSyncExternalStore，遇到上面这种情况都首选 useSyncExternalStore。删除 Effect 并将其替换为调用 useSyncExternalStore:
+
+```jsx
+function subscribe(callback) {
+  window.addEventListener('online', callback);
+  window.addEventListener('offline', callback);
+  return () => {
+    window.removeEventListener('online', callback);
+    window.removeEventListener('offline', callback);
+  };
+}
+
+function useOnlineStatus() {
+  // ✅ Good: Subscribing to an external store with a built-in Hook
+  return useSyncExternalStore(
+    subscribe, // React won't resubscribe for as long as you pass the same function
+    () => navigator.onLine, // How to get the value on the client
+    () => true // How to get the value on the server
+  );
+}
+
+function ChatIndicator() {
+  const isOnline = useOnlineStatus();
+  // ...
+}
+```
+
+这种方法比手动将可变数据同步到带有 Effect 的 React 状态更不容易出错。通常，你将编写像上面的 useOnlineStatus() 这样的自定义Hook，这样您就不需要在各个组件中重复此代码。 [阅读更多关于订阅React组件的外部存储的信息。](https://beta.reactjs.org/apis/react/useSyncExternalStore)
+
+### 请求数据
+
+许多 app 使用 Effects 去进行数据请求。编写这样的数据请求 Effect 是很常见的:
+
+```jsx
+function SearchResults({ query }) {
+  const [results, setResults] = useState([]);
+  const [page, setPage] = useState(1);
+
+  useEffect(() => {
+    // 🔴 避免: 避免进行没有 cleanup 逻辑的数据请求
+    fetchResults(query, page).then(json => {
+      setResults(json);
+    });
+  }, [query, page]);
+
+  function handleNextPageClick() {
+    setPage(page + 1);
+  }
+  // ...
+}
+
+```
+
+你不需要将 fetch 移动到事件处理函数中。
+
+这或许与先前需要将代码放到事件处理函数中的例子是相互矛盾的。然而考虑到这部分逻辑主要是去发起数据请求而不是输入事件。搜索输入通常是从 URL 预先填充的，用户可以在不接触输入的情况下向前和向后导航。它是从 页面还是 query 中获取并不重要。当组件可见时，你希望根据当前页面和查询将结果与来自网络的数据保持同步。这就是为什么它是一个效应。
+
+然而上面的代码有个 bug。设想你很快的输入 “hello”。然后查询将从 “h” 到 “he”、“hel”、“hell” 最终到" hello“进行变换。这将开始单独的请求，但不能保证响应将以何种顺序到达。例如，“hello” 的响应可能会在 “hello” 的响应之后到达。因为它最后会调用 setResults()，这将会展示一个错误的搜索结果。这被称为 **竞态**：两个请求之间互相竞争，并且会产生一个你无法预期的顺序。
+
+**为了解决竞态问题，你需要添加一个 cleanup 函数以忽视过期的响应。**
+
+```jsx
+function SearchResults({ query }) {
+  const [results, setResults] = useState([]);
+  const [page, setPage] = useState(1);
+  useEffect(() => {
+    let ignore = false;
+    fetchResults(query, page).then(json => {
+      if (!ignore) {
+        setResults(json);
+      }
+    });
+    return () => {
+      ignore = true;
+    };
+  }, [query, page]);
+
+  function handleNextPageClick() {
+    setPage(page + 1);
+  }
+  // ...
+}
+```
+
+这确保了在 Effect 获取数据时，除了最后一个请求之外的所有响应都将被忽略。
+
+处理竞态条件并不是实现数据获取的唯一困难。可能还需要考虑如何缓存的响应(以便用户点击回退时，可以立即看到上一个视图而不是 spinner 状态)，如何获取服务器上的数据(这样初始 server-rendered HTML 包含所获取的内容而不是转轮)，以及如何避免网络瀑布(这样一个子组件，需要获取数据不必等待每个父组件上面完成抓取数据之前可以开始)。**这些问题适用于任何 UI 库，而不仅仅是React。解决这些问题并非易事，这就是为什么现代框架提供了比直接在组件中写入 effect 更有效的内置数据获取机制。**
+
+如果你不使用框架(也不想构建自己的框架)，但想让从 Effects 获取数据更符合工程学，考虑将你的获取逻辑提取到自定义Hook中，就像这个例子:
+
+```jsx
+function SearchResults({ query }) {
+  const [page, setPage] = useState(1);
+  const params = new URLSearchParams({ query, page });
+  const results = useData(`/api/search?${params}`);
+
+  function handleNextPageClick() {
+    setPage(page + 1);
+  }
+  // ...
+}
+
+function useData(url) {
+  const [data, setData] = useState(null);
+  useEffect(() => {
+    let ignore = false;
+    fetch(url)
+      .then(response => response.json())
+      .then(json => {
+        if (!ignore) {
+          setData(json);
+        }
+      });
+    return () => {
+      ignore = true;
+    };
+  }, [url]);
+  return data;
+}
+```
+
+你可能还想添加一些逻辑，用于错误处理和跟踪内容是否正在加载。你可以自己构建这样的Hook，也可以使用 React 生态系统中已有的众多解决方案之一。尽管仅这一点并不像使用框架内置的数据获取机制那么有效，但是将数据获取逻辑移到自定义 Hook 中将使以后采用高效的数据获取策略更加容易。
+
+一般来说，当你不得不编写 Effects 时，请留意何时可以使用更具有声明性和更有目的构建的 API(如上面的useData)将功能提取到自定义 Hook 中。在组件中使用的原始 useEffect 调用越少，维护应用程序就越容易。
+
+## Effects 中的生命周期
+
+Effects 的生命周期与组件不同。组件可以挂载、更新或卸载。而一个 Effect 只能做两件事：开始同步某些东西，然后停止同步它。如果你的 Effect 依赖于随时间变化的 props 和 state，那么这个循环可能会发生多次。React 提供了一个 linter 规则来检查是否正确指定了Effect 的依赖项。这将使你的 Effect 与最新的 props 和 state 同步。
+
+你会学到的
+
+- Effect 的生命周期与组件的生命周期有何不同
+- 如何孤立地看待每个独立的 Effect
+- 何时需要重新同步 Effect，以及原因
+- 如何确定 Effect 的依赖关系
+- 一个响应式的值意味着什么
+- 空的依赖数组意味着什么
+- React 如何用 linter 验证你的依赖项是正确的
+- 当你不同意 linter 的意见时该怎么办?
+
+### 一个 Effect 的生命周期
+
+每个 React 组件都会经历相同的生命周期：
+
+- 挂载：将组件渲染到视图上
+- 更新：当组件接受新的 props 或者 state 时，进行更新操作。通常是为了响应交互事件
+- 卸载：当组件从视图上移除时
+
+这是一个非常好的思考方式，但是并不是 Effect 的思考方式。一次，请独立的思考每个 Effect 在你组件中的生命周期。Effect 通常用于描述如何同步外部系统到当前的 props 或 state。随着你代码的变化，这种同步操作需要或多或少的发生。
+
+为了说明这一点，设想下将组件连接到聊天服务器的效果:
+
+```jsx
+const serverUrl = 'https://localhost:1234';
+
+function ChatRoom({ roomId }) {
+  useEffect(() => {
+    const connection = createConnection(serverUrl, roomId);
+    connection.connect();
+    return () => {
+      connection.disconnect();
+    };
+  }, [roomId]);
+  // ...
+}
+```
+
+你的 Effect 的主体部分明确指出了如何**开始同步**：
+
+```jsx
+    // ...
+    const connection = createConnection(serverUrl, roomId);
+    connection.connect();
+    return () => {
+      connection.disconnect();
+    };
+    // ...
+```
+
+通过 Effect 返回的 cleanup 函数明确指出了如何**停止同步**：
+
+```jsx
+    // ...
+    const connection = createConnection(serverUrl, roomId);
+    connection.connect();
+    return () => {
+      connection.disconnect();
+    };
+    // ...
+```
+
+凭直觉，你可能认为 React 会在组件挂载时开始同步，在组件卸载时停止同步。然而，事情并没有结束！有时，还可能需要在组件保持挂载的情况下进行**多次开始和停止同步**。
+
+接下来让我们一起看看为什么这是必要的，它何时发生，以及如何控制这种行为。
+
+> 注意
+>
+>
+> 有的 Effect 没有返回 cleanup 函数。通常情况下，你认为需要返回，但是如果你没有返回的情况下，React 的表现行为就像你返回了一个什么都不做的空的 cleanup 函数。
+>
+
+### 为什么同步可能需要发生多次？
+
+设想下 ChatRoom 组件接受一个 roomId 的 props，它由用户通过点击 dropdown 产生。我们假设初始时用户选择的是 “general” 作为 roomId。app 显示 “general” 聊天室：
+
+```jsx
+const serverUrl = 'https://localhost:1234';
+
+function ChatRoom({ roomId /* "general" */ }) {
+  // ...
+  return <h1>Welcome to the {roomId} room!</h1>;
+}
+```
+
+在页面被渲染后，React 会运行 Effect 进行状态同步。链接 “general” 房间：
+
+```jsx
+function ChatRoom({ roomId /* "general" */ }) {
+  useEffect(() => {
+    const connection = createConnection(serverUrl, roomId); // Connects to the "general" room
+    connection.connect();
+    return () => {
+      connection.disconnect(); // Disconnects from the "general" room
+    };
+  }, [roomId]);
+  // ...
+```
+
+到目前为止，一切都表现的符合预期。
+
+之后，用户在下拉框中选择了另一个：“travel”。React 首先会更新 UI。
+
+```jsx
+function ChatRoom({ roomId /* "travel" */ }) {
+  // ...
+  return <h1>Welcome to the {roomId} room!</h1>;
+}
+```
+
+你可以暂停下，思考接下来发生了什么。用户在 UI 中看到选择的 “travel” 聊天室。然而，上次运行的 Effect 仍然 “geneal” 房间进行着链接。props 中的 roomId 已经改变了，所以无论你的 Effect 在那时做了什么(连接到 “general” 房间)都不再与现在的 UI 匹配了。
+
+此时，你希望 React 做两件事:
+
+- 停止与旧的 roomId 同步(断开与 “general” 房间的连接)
+- 开始与新的 roomId 同步(连接到“travel”房间)
+
+幸运的是，你已经学会如何通过 React 完成这两件事！用 Effect 的主体指定如何开始同步，用 cleanup 函数指定如何停止同步。React 现在需要做的就是以正确的顺序调用它们，并使用正确的 props 和 state。让我们看看这到底是怎么发生的。
+
+### React 如何重复同步你的 Effect
+
+回想一下，你的 ChatRoom 组件已经收到了新的 roomId 。以前是 “general”，现在是 “travel”。React 需要重新同步你的 Effect 以重新连接到不同的房间。
+
+为了停止同步，React 会调用 Effect 在连接到 “general” 房间后返回的 cleanup 函数。由于 roomId 为 “general”，cleanup 函数需要断开与 “general” 房间的连接:
+
+```jsx
+function ChatRoom({ roomId /* "general" */ }) {
+  useEffect(() => {
+    const connection = createConnection(serverUrl, roomId); // Connects to the "general" room
+    connection.connect();
+    return () => {
+      connection.disconnect(); // Disconnects from the "general" room
+    };
+    // ...
+```
+
+然后 React 将运行你在渲染期间提供的 Effect。这一次，roomId 是 “travel”，所以它将开始同步到 “travel” 聊天室(直到它的 cleanup 函数最终也被调用):
+
+```jsx
+function ChatRoom({ roomId /* "travel" */ }) {
+  useEffect(() => {
+    const connection = createConnection(serverUrl, roomId); // Connects to the "travel" room
+    connection.connect();
+    // ...
+```
+
+得益于此，你现在连接到用户在 UI 中选择的同一个房间。灾难避免了!
+
+每次在组件使用不同的 roomId 重新渲染后，你的 Effect 将重新同步。例如，假设用户将 roomId 从 “travel” 更改为 “music”。React 将再次通过调用它的 cleanup 函数(断开你与 “travel” 房间的连接)来停止同步你的 Effect。然后，它将通过运行新的 roomId 属性(将你连接到“music”房间)来再次开始同步。
+
+最后，当用户切换到另一个视图时，聊天室会卸载。现在完全没有必要保持联系了。React 将停止最后一次同步你的 Effect，并断开你与“music” 聊天室的连接。
+
+### 从 Effect 的角度思考
+
+让我们从 CharRoom 组件的角度来回顾一下发生的一切:
+
+- CharRoom 挂载时 roomId 设置为 “general”
+- roomId 设置为 “travel”，CharRoom 更新
+- roomId 设置为“music”，CharRoom 更新
+- 切换视图，CharRoom 卸载
+
+在组件生命周期的每一个点上，你的 Effect 做了不同的事情:
+
+- Effect 连接到 “general” 房间
+- Effect 与 “general” 房间断开连接，与 “general” 房间连接
+- Effect 从 “travel” 房间断开，连接到 “music” 房间
+- Effect 与 “music” 室断开连接
+
+现在让我们从 Effect 本身的角度来思考发生了什么:
+
+```jsx
+  useEffect(() => {
+    // Effect 链接到指定的 roomId
+    const connection = createConnection(serverUrl, roomId);
+    connection.connect();
+    return () => {
+      // ...断开连接
+      connection.disconnect();
+    };
+  }, [roomId]);
+```
+
+这段代码的结构可能会启发你， 这一系列操作发生了什么事情:
+
+- Effect 连接到 “general” 房间(直到它断开)
+- Effect 连接到 “travel” 房间(直到它断开)
+- Effect 连接到 “music” 房间(直到它断开)
+
+以前，你是从组件的角度考虑问题的。当你从组件的角度看时，很容易把 Effects 看作是在特定时间触发的“回调”或“生命周期事件”，比如“渲染之后”或“卸载之前”。这种思维方式很快就会变得复杂，所以最好避免。
+
+**相反，每次只关注一个启动/停止周期。无论组件是挂载、更新还是卸载，都不应该如此。您所需要做的就是描述如何启动同步和如何停止同步。如果你做得好，你的 Effect 会根据需要多次启动和停止。**
+
+这可能会提醒你，在编写创建 JSX 的渲染逻辑时，不要考虑组件是在挂载还是在更新。你描述应该出现在屏幕上的内容，然后 React 计算剩下的内容。
+
+### React 如何验证你的 Effect 可以重新同步
+
+你可能想知道 React 是如何知道你的 Effect 需要在 roomId 更改后重新同步的。这是因为你告诉 React，这个 Effect 的代码依赖于roomId，把它包含在依赖列表中:
+
+```jsx
+function ChatRoom({ roomId }) { // 属性 roomId 可能随着发生变化
+  useEffect(() => {
+    const connection = createConnection(serverUrl, roomId); // Effect 读取了 roomId
+    connection.connect();
+    return () => {
+      connection.disconnect();
+    };
+  }, [roomId]); // So you tell React that this Effect "depends on" roomId
+  // ...
+```
+
+下面是它的工作原理:
+
+- roomId 是一个 prop，这意味着它可以随着产生变化。
+- Effect 读取了roomId (因此它的执行逻辑取决于稍后可能产生变化的值)。
+- 这就是为什么你将它指定为 Effect 的依赖项(以便当 roomId 发生变化时它会重新同步)。
+
+每次在组件重新渲染之后，React 都会检查你传递的依赖项数组。如果数组中的任何值与之前渲染时传递的同一个依赖项的值不同，React 将重新同步你的 Effect。例如，如果你在初始渲染中传递 [“general”]，然后在下次渲染中传递 [“travel”]， Reac t会比较“general”和“travel”。这是两个不同的值(使用 Object.is 进行比较)，因此 React 将重新同步你的 Effect。另一方面，如果你的组件重新渲染但 roomId 没有更改，则 Effect 将仍会与相同的房间保持链接状态。
+
+### 每个 Effect 的同步过程都是独立
+
+不要向 Effect 中添加不相关的逻辑，因为该逻辑需要与你已经编写的 Effect 同时运行。例如，假设您想在用户访问房间时发送一个分析事件。你已经有了一个依赖于 roomId 的 Effect，所以你可能会想在这里添加分析调用:
+
+```jsx
+function ChatRoom({ roomId }) {
+  useEffect(() => {
+    logVisit(roomId);
+    const connection = createConnection(serverUrl, roomId);
+    connection.connect();
+    return () => {
+      connection.disconnect();
+    };
+  }, [roomId]);
+  // ...
+}
+```
+
+但是，假设你稍后需要向这个 Effect 再添加一个依赖项，需要重新建立连接。如果此 Effect 重新同步，你不希望它为同一房间调用 logVisit(roomId)。记录访问与连接是一个独立的过程。这就是为什么它们应该被写成两个独立的 Effect:
+
+```jsx
+function ChatRoom({ roomId }) {
+  useEffect(() => {
+    logVisit(roomId);
+  }, [roomId]);
+
+  useEffect(() => {
+    const connection = createConnection(serverUrl, roomId);
+    // ...
+  }, [roomId]);
+  // ...
+}
+```
+
+**代码中的每个 Effect 都应该代表一个独立的同步过程。**
+
+在上面的例子中，删除一个 Effect 不会破坏另一个 Effect 的逻辑。这意味着它们同步不同的内容，因此将它们分开是讲得通的。另一方面，如果你将一个内聚的逻辑片段分割成单独的 Effects，代码可能看起来“更干净”，但维护起来会更困难。这就是为什么你应该考虑同步过程是相同的还是独立的，而不是代码是否看起来更干净。
+
+### Effects 响应 响应式的值
+
+下面这段代码中，Effect 读取两个变量( serverUrl 和 roomId )，但只指定了 roomId 作为依赖:
+
+```jsx
+const serverUrl = 'https://localhost:1234';
+
+function ChatRoom({ roomId }) {
+  useEffect(() => {
+    const connection = createConnection(serverUrl, roomId);
+    connection.connect();
+    return () => {
+      connection.disconnect();
+    };
+  }, [roomId]);
+  // ...
+}
+```
+
+为什么不需要将 serverUrl 设置为依赖项？
+
+这是因为 serverUrl 不会因为重新渲染而改变。无论组件重新渲染多少次，用什么 props 和 state，都是一样的。因为 serverUrl 从不改变，所以将它指定为依赖项是没有意义的。毕竟，依赖关系只有在随时间变化时才会做一些事情!
+
+另一方面，在重新渲染时，roomId 可能是不同的。**在组件中声明的 props、state 和其他值是响应式的，因为它们是在渲染期间通过计算得到的，并参与了 React 数据流。**
+
+如果 serverUrl 是一个状态变量，它将是响应式的。响应值必须包含在依赖项中:
+
+```jsx
+function ChatRoom({ roomId }) { // Props change over time
+  const [serverUrl, setServerUrl] = useState('https://localhost:1234'); // State may change over time
+
+  useEffect(() => {
+    const connection = createConnection(serverUrl, roomId); // Your Effect reads props and state
+    connection.connect();
+    return () => {
+      connection.disconnect();
+    };
+  }, [roomId, serverUrl]); // So you tell React that this Effect "depends on" on props and state
+  // ...
+}
+```
+
+通过将 serverUrl 包含为依赖项，可以确保 Effect 在 serverUrl 更改后重新同步。
+
+尝试更改所选聊天室或在此沙箱中编辑服务器URL:
+
+App.js
+
+```jsx
+import { useState, useEffect } from 'react';
+import { createConnection } from './chat.js';
+
+function ChatRoom({ roomId }) {
+  const [serverUrl, setServerUrl] = useState('https://localhost:1234');
+
+  useEffect(() => {
+    const connection = createConnection(serverUrl, roomId);
+    connection.connect();
+    return () => connection.disconnect();
+  }, [roomId, serverUrl]);
+
+  return (
+    <>
+      <label>
+        Server URL:{' '}
+        <input
+          value={serverUrl}
+          onChange={e => setServerUrl(e.target.value)}
+        />
+      </label>
+      <h1>Welcome to the {roomId} room!</h1>
+    </>
+  );
+}
+
+export default function App() {
+  const [roomId, setRoomId] = useState('general');
+  return (
+    <>
+      <label>
+        Choose the chat room:{' '}
+        <select
+          value={roomId}
+          onChange={e => setRoomId(e.target.value)}
+        >
+          <option value="general">general</option>
+          <option value="travel">travel</option>
+          <option value="music">music</option>
+        </select>
+      </label>
+      <hr />
+      <ChatRoom roomId={roomId} />
+    </>
+  );
+}
+```
+
+chat.js
+
+```jsx
+export function createConnection(serverUrl, roomId) {
+  // A real implementation would actually connect to the server
+  return {
+    connect() {
+      console.log('✅ Connecting to "' + roomId + '" room at ' + serverUrl + '...');
+    },
+    disconnect() {
+      console.log('❌ Disconnected from "' + roomId + '" room at ' + serverUrl);
+    }
+  };
+}
+```
+
+每当你更改响应值(如 roomId 或 serverUrl )时，Effect 就会重新连接到聊天服务器。
+
+### 给 Effect 一个空依赖数组意味着什么
+
+如果你将 serverUrl 和 roomId 都移到组件之外会发生什么?
+
+```jsx
+const serverUrl = 'https://localhost:1234';
+const roomId = 'general';
+
+function ChatRoom() {
+  useEffect(() => {
+    const connection = createConnection(serverUrl, roomId);
+    connection.connect();
+    return () => {
+      connection.disconnect();
+    };
+  }, []); // ✅ All dependencies declared
+  // ...
+}
+```
+
+现在 Effect 的代码不使用任何响应值，因此它的依赖项可以为空 ([])。
+
+如果从组件的角度考虑，空的 [] 依赖项数组意味着此 Effect 仅在组件挂载时连接到聊天室，仅在组件卸载时断开连接。(请记住，React 仍然会在开发环境中重新同步它，以便对 Effect 的逻辑进行压力测试。)
+
+```jsx
+import { useState, useEffect } from 'react';
+import { createConnection } from './chat.js';
+
+const serverUrl = 'https://localhost:1234';
+const roomId = 'general';
+
+function ChatRoom() {
+  useEffect(() => {
+    const connection = createConnection(serverUrl, roomId);
+    connection.connect();
+    return () => connection.disconnect();
+  }, []); // 移除依赖项
+  return <h1>Welcome to the {roomId} room!</h1>;
+}
+
+export default function App() {
+  const [show, setShow] = useState(false);
+  return (
+    <>
+      <button onClick={() => setShow(!show)}>
+        {show ? 'Close chat' : 'Open chat'}
+      </button>
+      {show && <hr />}
+      {show && <ChatRoom />}
+    </>
+  );
+}
+```
+
+然而，如果从 Effect 的角度考虑，则完全不需要考虑挂载和卸载。重要的是，你已经指定了 Effect 如何开始和停止同步。今天，它没有响应式依赖。但如果你想让用户随着时间的推移改变 roomId 或 serverUrl (所以他们必须做出反应)，你的 Effect 代码不会改变。您只需要将它们添加到依赖项中。
+
+### 所有在组件主体中声明的变量都是响应式的
+
+props 和 state 并不是唯一的响应式变量。由它们计算出的值也是响应式的。如果 props 或 state 发生变化，组件将重新渲染，从它们计算出的值也将发生变化。这就是为什么 Effect 使用的组件体中的所有变量也应该在 Effect 依赖项列表中。
+
+假设用户可以在下拉菜单中选择聊天服务器，但也可以在设置中配置默认服务器。假设你已经将设置状态放在一个上下文中，因此你可以从该上下文中读取设置。现在，根据 props 中选择的服务器和上下文中的默认服务器计算 serverUrl:
+
+```jsx
+function ChatRoom({ roomId, selectedServerUrl }) { // roomId is reactive
+  const settings = useContext(SettingsContext); // settings is reactive
+  const serverUrl = selectedServerUrl ?? settings.defaultServerUrl; // serverUrl is reactive
+  useEffect(() => {
+    const connection = createConnection(serverUrl, roomId); // Your Effect reads roomId and serverUrl
+    connection.connect();
+    return () => {
+      connection.disconnect();
+    };
+  }, [roomId, serverUrl]); // So it needs to re-synchronize when either of them changes!
+  // ...
+}
+```
+
+在本例中，serverUrl 不是 props 或 state 变量。它是一个常规变量，在渲染阶段计算。但是由于它是在渲染期间计算的，所以它可以因重新渲染而改变。这就是为什么它是响应式的。
+
+**组件内部的所有值(包括组件主体中的 props 、state 和变量)都是响应式的。任何响应值都可以在重新渲染时更改，因此需要将响应值作为 Effect 的依赖项包含在内。**
+
+换句话说，Effects 对来自组件主体的所有值“做出响应”。
+
+### React 验证你指定为依赖项的每个响应值
+
+如果 linter 为 React 配置了，它将检查 Effect 代码使用的每个响应值是否声明为依赖项。例如，这是一个 lint 错误，因为 roomId 和serverUrl 都是响应的:
+
+```jsx
+import { useState, useEffect } from 'react';
+import { createConnection } from './chat.js';
+
+function ChatRoom({ roomId }) { // roomId is reactive
+  const [serverUrl, setServerUrl] = useState('https://localhost:1234'); // serverUrl is reactive
+
+  useEffect(() => {
+    const connection = createConnection(serverUrl, roomId);
+    connection.connect();
+    return () => connection.disconnect();
+  }, []); // <-- Something's wrong here!
+
+  return (
+    <>
+      <label>
+        Server URL:{' '}
+        <input
+          value={serverUrl}
+          onChange={e => setServerUrl(e.target.value)}
+        />
+      </label>
+      <h1>Welcome to the {roomId} room!</h1>
+    </>
+  );
+}
+
+```
+
+这看起来像是一个 React 错误，但实际上 React 是在指出代码中的一个错误。roomId 和 serverUrl 可能会随着时间的推移发生变化，但是当它们发生变化时，你会忘记重新同步 Effect。因此，即使用户在 UI 中选择了不同的值，你也将保持与初始 roomId 和 serverUrl 的连接。
+
+要修复这个 bug，按照 linter 的建议指定 roomId 和 serverUrl 作为 Effect 的依赖项:
+
+```jsx
+function ChatRoom({ roomId, serverUrl }) {
+  const [serverUrl, setServerUrl] = useState('https://localhost:1234'); // serverUrl is reactive
+  useEffect(() => {
+    const connection = createConnection(serverUrl, roomId);
+    connection.connect();
+    return () => {
+      connection.disconnect();
+    };
+  }, [serverUrl, roomId]); // ✅ All dependencies declared
+  // ...
+}
+```
+
+在上面的沙盒中尝试这个修复。验证 linter 错误已经消失，并且聊天在需要时重新连接。
+
+> 注意
+>
+>
+> 在某些情况下，React 知道某些值永远不会改变，即使它是在组件内部声明的。例如，useState 返回的 setter 函数和 useRef 返回的 ref 对象都是稳定的——它们保证在重新渲染时不会改变。稳定值不具有响应性，所以 linter 允许你从依赖列表中省略它们。当然，即使在依赖数组中包含它们是可以的: 它们不会改变，所以没关系。
+>
+
+### 当你不想重新同步时该怎么做
+
+在前面的示例中，通过列出 roomId 和 serverUrl 作为依赖项，已经修复了 lint 错误。
+
+然而，你可以向 linter “证明”这些值不是响应式的，也就是说，它们不会因为重新渲染而改变。例如，如果 serverUrl 和 roomId 不依赖于渲染并且总是具有相同的值，则可以将它们移到组件之外。现在它们不需要成为依赖:
+
+```jsx
+const serverUrl = 'https://localhost:1234'; // serverUrl is not reactive
+const roomId = 'general'; // roomId is not reactive
+
+function ChatRoom() {
+  useEffect(() => {
+    const connection = createConnection(serverUrl, roomId);
+    connection.connect();
+    return () => {
+      connection.disconnect();
+    };
+  }, []); // ✅ All dependencies declared
+  // ...
+}
+```
+
+你也可以将它们移动到效果中。它们在渲染时不会被计算，所以它们不是响应式的:
+
+```jsx
+function ChatRoom() {
+  useEffect(() => {
+    const serverUrl = 'https://localhost:1234'; // serverUrl is not reactive
+    const roomId = 'general'; // roomId is not reactive
+    const connection = createConnection(serverUrl, roomId);
+    connection.connect();
+    return () => {
+      connection.disconnect();
+    };
+  }, []); // ✅ All dependencies declared
+  // ...
+}
+```
+
+**Effect 是响应式的代码块**。当你在它们内部读取的值发生变化时，它们会重新同步。与每次交互只运行一次的事件处理程序不同，Effects在需要同步时运行。
+
+你不能“选择”你的依赖项。你的依赖项必须包括您在 Effect 中读取的每个响应值。linter 强制了这一点。有时，这可能会导致无限循环和你的 Effect 重新同步太频繁的问题。不要通过抑制 linter来解决这些问题! 下面是你可以尝试的方法:
+
+- **检查 Effect 是否代表独立的同步过程**。如果你的 Effect 没有同步任何东西，那么它可能是不必要的。如果它同步了几个独立的东西，就把它拆分。
+- **如果你想读取 props 或 state 的最新值，而不需要对其进行“响应”并重新同步 Effect，**你可以将 Effect 分为响应部分(你将保留在 Effect 中)和非反应部分(你将提取到事件函数中)。阅读更多关于分离事件和效果的信息。
+- **避免依赖对象和函数作为依赖项。**如果在渲染期间创建对象和函数，然后从 Effect 中读取它们，那么它们在每次渲染时都是不同的。这将导致您的 Effect 每次都重新同步。
+
+### 回顾
+
+- 组件可以挂载、更新和卸载。
+- 每个 Effect 都有一个独立于周围组件的生命周期。
+- 每个 Effect 都描述了一个可以开始和停止的独立同步过程。
+- 在编写和读取 Effect 时，应该从每个 Effect 的角度(如何启动和停止同步)考虑问题，而不是从组件的角度(如何安装、更新或卸载)考虑问题。
+- 在组件体中声明的值是“活性的”。
+- 响应值应该重新同步效果，因为它们可以随时间变化。
+- linter 验证 Effect 中使用的所有响应值都指定为依赖项。
+- linter 标记的所有错误都是合法的。总有一种方法可以在不违反规则的情况下修复代码。
+
+## 从 Effect 中分离事件
+
+事件处理函数只有在再次执行相同的交互时才会重新运行。与事件处理函数不同，如果 Effects 读取的某些值(如 props 或 state 变量)与上一次渲染时的值不同，则会重新同步。有时，你还需要这两种行为的混合：一个响应某些值而不响应其他值的重新运行的 Effect。这一页将教你如何做到这一点。多个 Effects 依赖有部分相同如何处理。
+
+你会学到的
+
+- 如何在事件处理程序和 Effects 之间进行选择
+- 为什么 Effects 是响应式的，而事件处理程序不是
+- 当你想让你的 Effect 的一部分代码不响应时该怎么做
+- 什么是事件函数，以及如何从 Effects 中提取它们
+- 如何从使用事件函数的 Effects 读取最新的 props 和 state
+
+### 在事件处理函数与 Effects 之间选择
+
+首先，让我们回顾下二者有什么不同。
+
+假设你正在实现一个聊天室组件。你的需求如下所示:
+
+- 组件应该自动连接到所选聊天室。
+- 当你点击“发送”按钮时，它应该会发送消息到聊天。
+
+假设你已经为它们实现了代码，但不确定将其放在哪里。应该使用事件处理程序还是 Effects? 每次您需要回答这个问题时，请考虑为什么需要运行这段代码。
+
+### 事件处理程序在响应特定交互时运行
+
+从用户的角度来看，发送消息应该是因为点击了特定的 “Send” 按钮后发生。如果你在任何其他时间或任何其他原因发送他们的消息，用户将会非常不安全。这就是为什么发送消息应该是一个事件处理函数。事件处理函数让你处理特定的交互，比如点击:
+
+```jsx
+function ChatRoom({ roomId }) {
+  const [message, setMessage] = useState('');
+  // ...
+  function handleSendClick() {
+    sendMessage(message);
+  }
+  // ...
+  return (
+    <>
+      <input value={message} onChange={e => setMessage(e.target.value)} />
+      <button onClick={handleSendClick}>Send</button>;
+    </>
+  );
+}
+```
+
+使用事件处理程序，可以确保 sendMessage(message) 只在用户按下按钮时运行。
+
+### Effects 在需要同步时运行
+
+回想一下，你还需要保持组件与聊天室的连接。这些代码应该放到哪里?
+
+运行这段代码的原因不是某种特定的交互。用户为什么或者如何导航到聊天室界面并不重要。现在他们正在查看它并可以与它交互，组件需要保持与所选聊天服务器的连接。即使聊天室组件是应用程序的初始界面，用户根本没有执行任何交互，你仍然需要连接。这就是为什么它是一个 Effect:
+
+```jsx
+function ChatRoom({ roomId }) {
+  // ...
+  useEffect(() => {
+    const connection = createConnection(serverUrl, roomId);
+    connection.connect();
+    return () => {
+      connection.disconnect();
+    };
+  }, [roomId]);
+  // ...
+}
+```
+
+使用这段代码，你可以确保始终有一个到当前所选聊天服务器的活动连接，而不管用户执行了什么特定的交互。无论用户只是打开了你的应用程序，选择了一个不同的房间，还是导航到另一个屏幕和返回， 你的 Effect 将确保组件将保持与当前选择的房间同步，并将在必要时重新连接。
+
+App
+
+```jsx
+import { useState, useEffect } from 'react';
+import { createConnection, sendMessage } from './chat.js';
+
+const serverUrl = 'https://localhost:1234';
+
+function ChatRoom({ roomId }) {
+  const [message, setMessage] = useState('');
+
+  useEffect(() => {
+    const connection = createConnection(serverUrl, roomId);
+    connection.connect();
+    return () => connection.disconnect();
+  }, [roomId]);
+
+  function handleSendClick() {
+    sendMessage(message);
+  }
+
+  return (
+    <>
+      <h1>Welcome to the {roomId} room!</h1>
+      <input value={message} onChange={e => setMessage(e.target.value)} />
+      <button onClick={handleSendClick}>Send</button>
+    </>
+  );
+}
+
+export default function App() {
+  const [roomId, setRoomId] = useState('general');
+  const [show, setShow] = useState(false);
+  return (
+    <>
+      <label>
+        Choose the chat room:{' '}
+        <select
+          value={roomId}
+          onChange={e => setRoomId(e.target.value)}
+        >
+          <option value="general">general</option>
+          <option value="travel">travel</option>
+          <option value="music">music</option>
+        </select>
+      </label>
+      <button onClick={() => setShow(!show)}>
+        {show ? 'Close chat' : 'Open chat'}
+      </button>
+      {show && <hr />}
+      {show && <ChatRoom roomId={roomId} />}
+    </>
+  );
+}
+```
+
+chat.js
+
+```jsx
+export function sendMessage(message) {
+  console.log('🔵 You sent: ' + message);
+}
+
+export function createConnection(serverUrl, roomId) {
+  // A real implementation would actually connect to the server
+  return {
+    connect() {
+      console.log('✅ Connecting to "' + roomId + '" room at ' + serverUrl + '...');
+    },
+    disconnect() {
+      console.log('❌ Disconnected from "' + roomId + '" room at ' + serverUrl);
+    }
+  };
+}
+```
+
+### 响应式的值和响应式的逻辑
+
+直观地说，事件处理程序总是“手动”触发的，例如通过单击按钮。另一方面，Effect 是“自动的”:它们运行和重新运行，只要它需要保持同步。
+
+有一种更精确的方法来思考这个问题。
+
+在组件主体中声明的 props、state 和变量称为响应值。在本例中，serverUrl 不是响应值，但 roomId 和 message 是。它们参与渲染数据流:
+
+```jsx
+const serverUrl = 'https://localhost:1234';
+
+function ChatRoom({ roomId }) {
+  const [message, setMessage] = useState('');
+
+  // ...
+}
+```
+
+由于重新渲染，这样的响应式值可能会发生变化。例如，用户可以编辑消息或在下拉列表中选择不同的 roomId。事件处理函数和 effect 在响应变化时是不同的:
+
+- 事件处理函数内部的逻辑不是响应式的。它将不会再次运行，除非用户再次执行相同的交互(例如，单击)。事件处理程序可以读取响应值，但不会对其更改“作出反应”。
+- Effects 内部的逻辑是响应式的。如果 Effect 读取响应值，则必须将其指定为依赖项。然后，如果重新渲染导致该值发生变化，React将使用新值重新运行 Effect 的逻辑。 让我们回顾一下前面的例子来说明这种差异。
+
+### 事件处理函数内部的逻辑不是响应式的
+
+看一下这行代码。这种逻辑是否应该是响应式?
+
+```
+    // ...    sendMessage(message);    // ...
+```
+
+从用户的角度来看，对消息的更改并不意味着他们想要发送消息。它只意味着用户正在输入。换句话说，发送消息的逻辑不应该是被动的。它不应该仅仅因为响应值更改而再次运行。这就是为什么你把这个逻辑放在事件处理程序中:
+
+```jsx
+  function handleSendClick() {
+    sendMessage(message);
+  }
+```
+
+事件处理程序不是响应式的，因此 sendMessage(message) 只在用户单击 Send 按钮时运行。
+
+### Effecst 内部的逻辑是响应式的
+
+现在我们看下下面的代码：
+
+```jsx
+    // ...
+    const connection = createConnection(serverUrl, roomId);
+    connection.connect();
+    // ...
+```
+
+从用户的角度来看，**对 roomId 的更改确实意味着他们想要连接到一个不同的房间**。换句话说，连接到房间的逻辑应该是响应式的。你希望这些代码行与响应值“保持一致”，并在该值不同时再次运行。这就是为什么你把这个逻辑放在 Effect 中:
+
+```jsx
+useEffect(() => {
+    const connection = createConnection(serverUrl, roomId);
+    connection.connect();
+    return () => {
+      connection.disconnect()
+    };
+  }, [roomId]);
+```
+
+Effect 是响应式的，因此 roomId 的每个不同值都会运行 createConnection(serverUrl, roomId) 和 connect .connect() 。你的 Effect 保持聊天连接同步到当前选定的房间。
+
+### 从 Effects 中提取非响应式逻辑
+
+当你想要将反应逻辑和非反应逻辑写在一起时，事情会变得更加棘手。
+
+例如，假设您想在用户连接到聊天时显示一个通知。你从 props 中读取当前主题(暗或亮)，这样你就可以用正确的颜色显示通知:
+
+```jsx
+function ChatRoom({ roomId, theme }) {
+  useEffect(() => {
+    const connection = createConnection(serverUrl, roomId);
+    connection.on('connected', () => {
+      showNotification('Connected!', theme);
+    });
+    connection.connect();
+    // ...
+```
+
+然而，theme 是一个响应值(它可以由于重新渲染而更改)，并且 Effect 读取的每个响应值都必须声明为它的依赖项。所以现在你必须指定theme 作为 Effect 的依赖项:
+
+```jsx
+function ChatRoom({ roomId, theme }) {
+  useEffect(() => {
+    const connection = createConnection(serverUrl, roomId);
+    connection.on('connected', () => {
+      showNotification('Connected!', theme);
+    });
+    connection.connect();
+    return () => {
+      connection.disconnect()
+    };
+  }, [roomId, theme]); // ✅ All dependencies declared
+  // ...
+```
+
+试这运行这个例子，看看你是否能发现这个用户体验的问题:
+
+App.js
+
+```jsx
+import { useState, useEffect } from 'react';
+import { createConnection, sendMessage } from './chat.js';
+import { showNotification } from './notifications.js';
+
+const serverUrl = 'https://localhost:1234';
+
+function ChatRoom({ roomId, theme }) {
+  useEffect(() => {
+    const connection = createConnection(serverUrl, roomId);
+    connection.on('connected', () => {
+      showNotification('Connected!', theme);
+    });
+    connection.connect();
+    return () => connection.disconnect();
+  }, [roomId, theme]);
+
+  return <h1>Welcome to the {roomId} room!</h1>
+}
+
+export default function App() {
+  const [roomId, setRoomId] = useState('general');
+  const [isDark, setIsDark] = useState(false);
+  return (
+    <>
+      <label>
+        Choose the chat room:{' '}
+        <select
+          value={roomId}
+          onChange={e => setRoomId(e.target.value)}
+        >
+          <option value="general">general</option>
+          <option value="travel">travel</option>
+          <option value="music">music</option>
+        </select>
+      </label>
+      <label>
+        <input
+          type="checkbox"
+          checked={isDark}
+          onChange={e => setIsDark(e.target.checked)}
+        />
+        Use dark theme
+      </label>
+      <hr />
+      <ChatRoom
+        roomId={roomId}
+        theme={isDark ? 'dark' : 'light'}
+      />
+    </>
+  );
+}
+
+```
+
+Chat.js
+
+```jsx
+export function createConnection(serverUrl, roomId) {
+  // A real implementation would actually connect to the server
+  let connectedCallback;
+  let timeout;
+  return {
+    connect() {
+      timeout = setTimeout(() => {
+        if (connectedCallback) {
+          connectedCallback();
+        }
+      }, 100);
+    },
+    on(event, callback) {
+      if (connectedCallback) {
+        throw Error('Cannot add the handler twice.');
+      }
+      if (event !== 'connected') {
+        throw Error('Only "connected" event is supported.');
+      }
+      connectedCallback = callback;
+    },
+    disconnect() {
+      clearTimeout(timeout);
+    }
+  };
+}
+```
+
+notification.js
+
+```jsx
+import Toastify from 'toastify-js';
+import 'toastify-js/src/toastify.css';
+
+export function showNotification(message, theme) {
+  Toastify({
+    text: message,
+    duration: 2000,
+    gravity: 'top',
+    position: 'right',
+    style: {
+      background: theme === 'dark' ? 'black' : 'white',
+      color: theme === 'dark' ? 'white' : 'black',
+    },
+  }).showToast();
+}
+
+```
+
+当 roomId 改变时，聊天将如你所期望的那样重新连接。但是由于 theme 也是一个依赖项，每次你在暗主题和亮主题之间切换时，聊天也会重新连接。这可不太好!
+
+换句话说，你不希望这一行是反应的，即使它在一个 Effect (它是反应的)中:
+
+```
+// ...showNotification('Connected!', theme);// ...
+```
+
+你需要一种方法将非响应式的逻辑与周围的响应式 Effect 分离开来。
+
+### useEvent Hook，声明一个 Event 函数
+
+使用一个叫做 useEvent 的特殊钩子从你的 Effect 中提取这个非响应式逻辑:
+
+```jsx
+import { useEffect, useEvent } from 'react';
+
+function ChatRoom({ roomId, theme }) {
+  const onConnected = useEvent(() => {
+    showNotification('Connected!', theme);
+  });
+  // ...
+```
+
+这里，onConnected 被称为事件函数。它是 Effect 逻辑的一部分，但它的行为更像事件处理程序。它内部的逻辑不是响应式的，它总是可以“看到”你的 props 和 state 的最新值。
+
+现在你可以从你的效果内部调用 onConnected Event 函数:
+
+```jsx
+function ChatRoom({ roomId, theme }) {
+  const onConnected = useEvent(() => {
+    showNotification('Connected!', theme);
+  });
+
+  useEffect(() => {
+    const connection = createConnection(serverUrl, roomId);
+    connection.on('connected', () => {
+      onConnected();
+    });
+    connection.connect();
+    return () => connection.disconnect();
+  }, [roomId]); // ✅ All dependencies declared
+  // ...
+```
+
+这就解决了问题。类似于 useState 返回的 setter 函数，所有的 Event 函数都是稳定的: 它们在重新渲染时不会改变。这就是为什么您可以在依赖项列表中跳过它们。它们不是响应式的。
+
+你可以认为事件函数非常类似于事件处理函数。主要区别在于，事件处理程序是在响应用户交互时运行的，而事件函数是由您从 Effects 中触发的。事件函数让您“打破” Effects 的响应式和一些不应该是响应式的代码之间的链。
+
+### 使用 Event 函数获取最新的 props 和 state
+
+事件函数使你可以修复许多可能会试图抑制依赖 linter 的模式。
+
+例如，假设您有一个 Effect 来记录页面访问:
+
+```jsx
+function Page() {
+  useEffect(() => {
+    logVisit();
+  }, []);
+  // ...
+}
+```
+
+之后，向站点添加多条路由。现在，Page 组件接收一个带有当前路径的 url 属性。你想传递 url 作为你的 logVisit 调用的一部分，但是依赖 linter 抱怨:
+
+```jsx
+function Page({ url }) {
+  useEffect(() => {
+    logVisit(url);
+  }, []); // 🔴 React Hook useEffect has a missing dependency: 'url'
+  // ...
+}
+```
+
+考虑一下你希望代码做什么。因为每个URL代表不同的页面，所以您希望记录对不同URL的单独访问。换句话说，这个logVisit调用应该是响应于url的。这就是为什么，在这种情况下，它是有意义的跟随依赖linter，并添加url作为依赖:
+
+```jsx
+function Page({ url }) {
+  useEffect(() => {
+    logVisit(url);
+  }, [url]); // ✅ All dependencies declared
+  // ...
+}
+```
+
+现在让我们假设你想包含购物车中的商品数量和每次页面访问:
+
+```jsx
+function Page({ url }) {
+  const { items } = useContext(ShoppingCartContext);
+  const numberOfItems = items.length;
+
+  useEffect(() => {
+    logVisit(url, numberOfItems);
+  }, [url]); // 🔴 React Hook useEffect has a missing dependency: 'numberOfItems'
+  // ...
+}
+```
+
+你在 Effect 中使用了numberOfItems，因此 linter 要求您将其作为依赖项添加。但是，您不希望 logVisit 调用对 numberOfItems 产生响应。如果用户向购物车中放入了一些东西，而 numberOfItems 发生了变化，这并不意味着用户再次访问了该页。换句话说，访问页面感觉类似于一个事件。你要非常准确地说出事情发生的时间。
+
+将代码分成两部分:
+
+```jsx
+function Page({ url }) {
+  const { items } = useContext(ShoppingCartContext);
+  const numberOfItems = items.length;
+
+  const onVisit = useEvent(visitedUrl => {
+    logVisit(visitedUrl, numberOfItems);
+  });
+
+  useEffect(() => {
+    onVisit(url);
+  }, [url]); // ✅ All dependencies declared
+  // ...
+}
+```
+
+这里，onVisit 是一个 Event 函数。它里面的代码不是响应式的。这就是为什么你可以使用 numberOfItems (或任何其他响应值!)，而不必担心它会导致周围的代码在更改时重新执行。
+
+另一方面，效果本身仍然是被动的。效果中的代码使用 url 道具，因此效果将在每次使用不同的 url 重新渲染后重新运行。这将依次调用onVisit 事件函数。
+
+因此，对于 url 的每次更改，您都将调用 logVisit，并且总是读取最新的 numberOfItems。但是，如果 numberOfItems 自己发生变化，这将不会导致任何代码重新运行。
+
+### Event 函数的限制
+
+目前，事件函数的使用方式非常有限:
+
+- 只能从Effects内部调用它们。
+- 永远不要将它们传递给其他组件或 hook。
+
+例如，不要像这样声明和传递 Event 函数:
+
+```jsx
+function Timer() {
+  const [count, setCount] = useState(0);
+
+  const onTick = useEvent(() => {
+    setCount(count + 1);
+  });
+
+  useTimer(onTick, 1000); // 🔴 Avoid: Passing event functions
+
+  return <h1>{count}</h1>
+}
+
+function useTimer(callback, delay) {
+  useEffect(() => {
+    const id = setInterval(() => {
+      callback();
+    }, delay);
+    return () => {
+      clearInterval(id);
+    };
+  }, [delay, callback]); // Need to specify "callback" in dependencies
+}
+```
+
+相反，总是在使用事件函数的 Effects 旁边直接声明事件函数:
+
+```jsx
+function Timer() {
+  const [count, setCount] = useState(0);
+  useTimer(() => {
+    setCount(count + 1);
+  }, 1000);
+  return <h1>{count}</h1>
+}
+
+function useTimer(callback, delay) {
+  const onTick = useEvent(() => {
+    callback();
+  });
+
+  useEffect(() => {
+    const id = setInterval(() => {
+      onTick(); // ✅ Good: Only called locally inside an Effect
+    }, delay);
+    return () => {
+      clearInterval(id);
+    };
+  }, [delay]); // No need to specify "onTick" (an Event function) as a dependency
+}
+```
+
+在未来，这些限制可能会被取消。但是现在，你可以认为事件函数是你的 Effect 代码的非响应式“片段”，所以它们应该接近使用它们的 Effect。
+
+### 回顾
+
+- 事件处理程序在响应特定交互时运行。
+- 效果在需要同步时运行。
+- 事件处理程序内部的逻辑不是响应式的。
+- Effects 内部的逻辑是响应式的。
+- 可以将非响应性逻辑从 Effects 移到 Event 函数中。
+- 只从 Effects 内部调用 Event 函数。
+- 不要将 Event 函数传递给其他组件或 hook。
+
+## 移除 Effect 的依赖
+
+当你编写一个 Effect 时，linter 会验证你是否已经在 Effect 的依赖项列表中包含了 Effect 读取的每个响应值(比如属性和状态)。这确保你的 Effect 与组件的最新属性和状态保持同步。不必要的依赖可能会导致 Effect 过于频繁地运行，甚至产生无限循环。按照本指南检查并从 Effects 中删除不必要的依赖项。
+
+你会学到的：
+
+- 如何修复无限的效应依赖循环
+- 当您想要删除一个依赖项时该怎么做
+- 如何从你的效果读取一个值而不“反应”它
+- 如何以及为什么避免对象和函数的依赖关系
+- 为什么抑制依赖 linter 是危险的，该怎么做呢
+
+### 依赖应该与代码匹配
+
+当你编写一个 Effect 时，你首先明确声明如何开始和停止或你想通过 Effect 做的任何事情:
+
+```jsx
+const serverUrl = 'https://localhost:1234';
+
+function ChatRoom({ roomId }) {
+  useEffect(() => {
+    const connection = createConnection(serverUrl, roomId);
+    connection.connect();
+    return () => connection.disconnect();
+    // ...
+}
+```
+
+然后，如果你让 Effect 依赖项为空([])，linter 会建议正确的依赖项:
+
+```jsx
+import { useState, useEffect } from 'react';
+import { createConnection } from './chat.js';
+
+const serverUrl = 'https://localhost:1234';
+
+function ChatRoom({ roomId }) {
+  useEffect(() => {
+    const connection = createConnection(serverUrl, roomId);
+    connection.connect();
+    return () => connection.disconnect();
+  }, []); // <-- Fix the mistake here!
+  return <h1>Welcome to the {roomId} room!</h1>;
+}
+
+export default function App() {
+  const [roomId, setRoomId] = useState('general');
+  return (
+    <>
+      <label>
+        Choose the chat room:{' '}
+        <select
+          value={roomId}
+          onChange={e => setRoomId(e.target.value)}
+        >
+          <option value="general">general</option>
+          <option value="travel">travel</option>
+          <option value="music">music</option>
+        </select>
+      </label>
+      <hr />
+      <ChatRoom roomId={roomId} />
+    </>
+  );
+}
+
+```
+
+按照 Linter 提示上的内容填写依赖:
+
+```jsx
+function ChatRoom({ roomId }) {
+  useEffect(() => {
+    const connection = createConnection(serverUrl, roomId);
+    connection.connect();
+    return () => connection.disconnect();
+  }, [roomId]); // ✅ All dependencies declared
+  // ...
+}
+```
+
+Effects 对响应式的状态是“响应式”。由于 roomId 是一个响应值(它可以由于重新呈现而发生更改)，所以 linter 会验证您已将其指定为依赖项。如果roomId 接收到不同的值，React 将重新同步你的 Effect。这确保了聊天保持与所选房间的连接，并对下拉菜单“做出反应”:
+
+```jsx
+port { useState, useEffect } from 'react';
+import { createConnection } from './chat.js';
+
+const serverUrl = 'https://localhost:1234';
+
+function ChatRoom({ roomId }) {
+  useEffect(() => {
+    const connection = createConnection(serverUrl, roomId);
+    connection.connect();
+    return () => connection.disconnect();
+  }, [roomId]);
+  return <h1>Welcome to the {roomId} room!</h1>;
+}
+
+export default function App() {
+  const [roomId, setRoomId] = useState('general');
+  return (
+    <>
+      <label>
+        Choose the chat room:{' '}
+        <select
+          value={roomId}
+          onChange={e => setRoomId(e.target.value)}
+        >
+          <option value="general">general</option>
+          <option value="travel">travel</option>
+          <option value="music">music</option>
+        </select>
+      </label>
+      <hr />
+      <ChatRoom roomId={roomId} />
+    </>
+  );
+}
+```
+
+### 移除依赖需要证明它不是依赖
+
+注意你不能“选择”你的 Effect 的依赖项。Effect 的代码使用的每个响应值都必须在依赖项列表中声明。Effect 的依赖项列表由周围的代码决定:
+
+```jsx
+const serverUrl = 'https://localhost:1234';
+
+function ChatRoom({ roomId }) { // This is a reactive value
+  useEffect(() => {
+    const connection = createConnection(serverUrl, roomId); // This Effect reads that reactive value
+    connection.connect();
+    return () => connection.disconnect();
+  }, [roomId]); // ✅ So you must specify that reactive value as a dependency of your Effect
+  // ...
+}
+```
+
+响应值包括属性和直接在组件内部声明的所有变量和函数。由于 roomId 是一个响应值，所以不能从依赖项列表中删除它。linter 不允许:
+
+```jsx
+const serverUrl = 'https://localhost:1234';
+
+function ChatRoom({ roomId }) {
+  useEffect(() => {
+    const connection = createConnection(serverUrl, roomId);
+    connection.connect();
+    return () => connection.disconnect();
+  }, []); // 🔴 React Hook useEffect has a missing dependency: 'roomId'
+  // ...
+}
+```
+
+LInter 是对的!由于 roomId 可能随着时间的推移而变化，这将在代码中引入一个错误。
+
+**要删除依赖项，您需要向 linter “证明”它不需要成为依赖项**。例如，你可以将 roomId 移出你的组件，以证明它不是响应式的，并且不会在重新渲染时改变:
+
+```jsx
+const serverUrl = 'https://localhost:1234';
+const roomId = 'music'; // Not a reactive value anymore
+
+function ChatRoom() {
+  useEffect(() => {
+    const connection = createConnection(serverUrl, roomId);
+    connection.connect();
+    return () => connection.disconnect();
+  }, []); // ✅ All dependencies declared
+  // ...
+}
+```
+
+这就是为什么你现在可以指定一个空的 ([]) 依赖项列表。你的 Effect 真的不再依赖于任何响应值，所以当组件的任何属性或状态发生变化时，它真的不需要重新运行。
+
+### 调整依赖就要调整代码
+
+你可能已经注意到工作流程中的一个模式:
+
+- 首先，更改 Effect 的代码或响应值的声明方式。
+- 然后，遵循 linter 并调整依赖项以匹配已更改的代码。
+- 如果你对依赖项列表不满意，则返回第一步(并再次更改代码)。
+- 最后一部分很重要。如果要更改依赖项，请先更改周围的代码。你可以将依赖项列表看作 Effect 代码使用的所有响应值的列表。你不会故意选择要写什么。列表描述了您的代码。要更改依赖项列表，请更改代码。
+
+这可能感觉像解一个方程。您可能从一个目标开始(例如，删除一个依赖项)，并且您需要“找到”与该目标匹配的确切代码。不是每个人都觉得解方程有趣，写 Effects 也一样!幸运的是，下面有一份常见的清单，你可以试试。
+
+### 移除不必要的依赖
+
+每次调整 Effect 的依赖项以反映代码时，请查看依赖项列表。当这些依赖关系发生变化时，重新运行 Effect 是否有意义?有时候，答案是“不”:
+
+- 有时，您希望在不同的条件下重新执行 Effect 的不同部分。
+- 有时，您希望只读取某些依赖项的最新值，而不是对其更改“作出反应”。
+- 有时，依赖项可能会因为它是一个对象或一个函数而频繁地无意地更改。
+
+为了找到正确的解决方案，你需要回答一些关于 Effects 的问题。让我们一起来看看。
+
+### 代码是否应该提取到事件函数中
+
+您应该考虑的第一件事是这段代码是否应该是一个 Effect。
+
+想象一个场景。在提交时，将提交的状态变量设置为 true。您需要发送 POST 请求并显示通知。你已经决定把这个逻辑放在一个 Effect中，当 submitted 为 true 时 “react”:
+
+```jsx
+function Form() {
+  const [submitted, setSubmitted] = useState(false);
+
+  useEffect(() => {
+    if (submitted) {
+      // 🔴 Avoid: Event-specific logic inside an Effect
+      post('/api/register');
+      showNotification('Successfully registered!');
+    }
+  }, [submitted]);
+
+  function handleSubmit() {
+    setSubmitted(true);
+  }
+
+  // ...
+}
+```
+
+稍后，您希望根据当前主题设置通知消息的样式，因此您将读取当前主题。因为 theme 是在组件体中声明的，所以它是一个响应值，你必须将它声明为依赖项:
+
+```jsx
+function Form() {
+  const [submitted, setSubmitted] = useState(false);
+  const theme = useContext(ThemeContext);
+
+  useEffect(() => {
+    if (submitted) {
+      // 🔴 Avoid: Event-specific logic inside an Effect
+      post('/api/register');
+      showNotification('Successfully registered!', theme);
+    }
+
+  }, [submitted, theme]); // ✅ All dependencies declared
+
+  function handleSubmit() {
+    setSubmitted(true);
+  }
+
+  // ...
+}
+```
+
+但是这样做，您就引入了一个错误。假设您先提交表单，然后在 Dark 和 Light 主题之间切换。主题将改变，Effect 将重新运行，因此它将再次显示相同的通知!
+
+这里的问题是，这本来就不应该是一个 Effect。您希望发送此 POST 请求并显示通知以响应提交表单，这是一种特殊的交互。当你想运行一些代码来响应特定的交互，把逻辑直接放到相应的事件处理程序中:
+
+```jsx
+function Form() {
+  const theme = useContext(ThemeContext);
+
+  function handleSubmit() {
+    // ✅ Good: Event-specific logic is called from event handlers
+    post('/api/register');
+    showNotification('Successfully registered!', theme);
+  }
+
+  // ...
+}
+```
+
+现在，代码位于事件处理程序中，它没有响应性—因此，它只在用户提交表单时运行。阅读更多关于在事件处理程序和效果之间进行选择以及如何删除不必要的效果的信息。
+
+### 你的 Effect 是否做了无关的事情
+
+您应该问自己的下一个问题是，您的 Effect 是否正在做几件不相关的事情。
+
+假设您正在创建一个购物表单，其中用户需要选择他们的城市和地区。你可以根据所选国家从服务器获取城市列表，这样你就可以以下拉选项的形式显示它们:
+
+```jsx
+function ShippingForm({ country }) {
+  const [cities, setCities] = useState(null);
+  const [city, setCity] = useState(null);
+
+  useEffect(() => {
+    let ignore = false;
+    fetch(`/api/cities?country=${country}`)
+      .then(response => response.json())
+      .then(json => {
+        if (!ignore) {
+          setCities(json);
+        }
+      });
+    return () => {
+      ignore = true;
+    };
+  }, [country]); // ✅ All dependencies declared
+
+  // ...
+```
+
+这是一个在 Effect 中获取数据的好例子。您正在根据国家支持将城市状态与网络同步。在事件处理程序中不能这样做，因为您需要在ShippingForm 显示时和国家更改时(无论由哪种交互引起)立即进行获取。
+
+现在，假设您要为城市区域添加第二个选择框，它应该为当前选定的城市获取区域。你可以先为同一个 Effect 内的区域列表添加第二个fetch 调用:
+
+```jsx
+function ShippingForm({ country }) {
+  const [cities, setCities] = useState(null);
+  const [city, setCity] = useState(null);
+  const [areas, setAreas] = useState(null);
+
+  useEffect(() => {
+    let ignore = false;
+    fetch(`/api/cities?country=${country}`)
+      .then(response => response.json())
+      .then(json => {
+        if (!ignore) {
+          setCities(json);
+        }
+      });
+    // 🔴 Avoid: A single Effect synchronizes two independent processes
+    if (city) {
+      fetch(`/api/areas?city=${city}`)
+        .then(response => response.json())
+        .then(json => {
+          if (!ignore) {
+            setAreas(json);
+          }
+        });
+    }
+    return () => {
+      ignore = true;
+    };
+  }, [country, city]); // ✅ All dependencies declared
+
+  // ...
+```
+
+但是，由于 Effect 现在使用 city 状态变量，您必须将 city 添加到依赖项列表中。这反过来又带来了一个问题。现在，每当用户选择一个不同的城市时，Effect 将重新运行并调用 fetchCities(国家)。因此，您将不必要地多次重新获取城市列表。
+
+这段代码的问题是，你同步了两个不同的不相关的东西:
+
+- 您希望基于国家支持将城市状态同步到网络。
+- 您希望基于城市状态将区域状态同步到网络。
+
+将逻辑拆分为两个 effect，每一个都对需要同步的属性做出反应:
+
+```jsx
+function ShippingForm({ country }) {
+  const [cities, setCities] = useState(null);
+  useEffect(() => {
+    let ignore = false;
+    fetch(`/api/cities?country=${country}`)
+      .then(response => response.json())
+      .then(json => {
+        if (!ignore) {
+          setCities(json);
+        }
+      });
+    return () => {
+      ignore = true;
+    };
+  }, [country]); // ✅ All dependencies declared
+
+  const [city, setCity] = useState(null);
+  const [areas, setAreas] = useState(null);
+  useEffect(() => {
+    if (city) {
+      let ignore = false;
+      fetch(`/api/areas?city=${city}`)
+        .then(response => response.json())
+        .then(json => {
+          if (!ignore) {
+            setAreas(json);
+          }
+        });
+      return () => {
+        ignore = true;
+      };
+    }
+  }, [city]); // ✅ All dependencies declared
+
+  // ...
+```
+
+现在第一个 Effect 只在国家发生变化时才会重新运行，而第二个 Effect 则在城市发生变化时重新运行。您已经按目的将它们分开: 两个不同的东西由两个不同的 Effects 同步。两个独立的 effect 有两个独立的依赖项列表，因此它们不再会无意中相互触发。
+
+最终的代码比原始的代码长，但是分割这些效果仍然是正确的。每个 Effect 都应该代表一个独立的同步过程。在本例中，删除一个 Effect不会破坏另一个 Effect 的逻辑。这是一个很好的迹象，说明它们同步不同的内容，将它们分开是有意义的。如果对重复感到担忧，可以通过将重复逻辑提取到自定义 Hook 中来进一步改进这段代码。
+
+### 是否根据一些 state 去计算新的 state
+
+每当有新消息到达时，此 Effect 会用一个新创建的数组更新 messages 状态变量:
+
+```jsx
+function ChatRoom({ roomId }) {
+  const [messages, setMessages] = useState([]);
+  useEffect(() => {
+    const connection = createConnection();
+    connection.connect();
+    connection.on('message', (receivedMessage) => {
+      setMessages([...messages, receivedMessage]);
+    });
+    // ...
+```
+
+它使用 messages 变量以所有现有消息开始创建一个新数组，并在末尾添加新消息。然而，由于 messages 是一个由 Effect 读取的响应值，它必须是一个依赖:
+
+```jsx
+function ChatRoom({ roomId }) {
+  const [messages, setMessages] = useState([]);
+  useEffect(() => {
+    const connection = createConnection();
+    connection.connect();
+    connection.on('message', (receivedMessage) => {
+      setMessages([...messages, receivedMessage]);
+    });
+    return () => connection.disconnect();
+  }, [roomId, messages]); // ✅ All dependencies declared
+  // ...
+```
+
+使消息成为依赖会带来一个问题。
+
+每次接收到消息时，setMessages() 会使组件重新渲染一个包含接收到的消息的新消息数组。然而，由于这个 Effect 现在依赖于 message，这也将重新同步 Effect 。所以每一条新消息都会使聊天重新连接。用户不会喜欢这样的!
+
+要解决这个问题，请不要 Effect 内部的读取 message。相反，传递一个更新函数给 setMessages:
+
+```jsx
+function ChatRoom({ roomId }) {
+  const [messages, setMessages] = useState([]);
+  useEffect(() => {
+    const connection = createConnection();
+    connection.connect();
+    connection.on('message', (receivedMessage) => {
+      setMessages(msgs => [...msgs, receivedMessage]);
+    });
+    return () => connection.disconnect();
+  }, [roomId]); // ✅ All dependencies declared
+  // ...
+```
+
+**注意您的 Effect 现在根本不读取 messages 变量**。你只需要传递一个更新函数像 msgs =>[…msgs,receivedMessage]。React 将更新器函数放入队列中，并在下一次渲染时向其提供 msgs 参数。这就是 Effect 本身不再需要依赖消息的原因。此修复的结果是，接收聊天消息将不再使聊天重新连接。
+
+### 你是读取某个状态来计算下一个状态吗?
+
+假设你想在用户收到新消息时播放一个声音，除非 isMute 为 true:
+
+```jsx
+function ChatRoom({ roomId }) {
+  const [messages, setMessages] = useState([]);
+  const [isMuted, setIsMuted] = useState(false);
+
+  useEffect(() => {
+    const connection = createConnection();
+    connection.connect();
+    connection.on('message', (receivedMessage) => {
+      setMessages(msgs => [...msgs, receivedMessage]);
+      if (!isMuted) {
+        playSound();
+      }
+    });
+    // ...
+```
+
+因为你的 Effect 现在在它的代码中使用 isMute，你必须把它添加到依赖:
+
+```jsx
+function ChatRoom({ roomId }) {
+  const [messages, setMessages] = useState([]);
+  const [isMuted, setIsMuted] = useState(false);
+
+  useEffect(() => {
+    const connection = createConnection();
+    connection.connect();
+    connection.on('message', (receivedMessage) => {
+      setMessages(msgs => [...msgs, receivedMessage]);
+      if (!isMuted) {
+        playSound();
+      }
+    });
+    return () => connection.disconnect();
+  }, [roomId, isMuted]); // ✅ All dependencies declared
+  // ...
+```
+
+问题是每当 isMute 发生变化时(例如，当用户按下“Mute”按钮时)，Effect 将重新同步，并重新连接到聊天服务器。这不是理想的用户体验!(在这个例子中，即使禁用 linter 也不会起作用——如果你这样做，isMute 将被“卡住”它的旧值。)
+
+要解决这个问题，您需要从 Effect 中提取不应该是反应性的逻辑。您不希望此 Effect 对 isMute 中的更改“作出响应”。将这个非反应性的逻辑块移动到 Event函数中:
+
+```jsx
+import { useState, useEffect, useEvent } from 'react';
+
+function ChatRoom({ roomId }) {
+  const [messages, setMessages] = useState([]);
+  const [isMuted, setIsMuted] = useState(false);
+
+  const onMessage = useEvent(receivedMessage => {
+    setMessages(msgs => [...msgs, receivedMessage]);
+    if (!isMuted) {
+      playSound();
+    }
+  });
+
+  useEffect(() => {
+    const connection = createConnection();
+    connection.connect();
+    connection.on('message', (receivedMessage) => {
+      onMessage(receivedMessage);
+    });
+    return () => connection.disconnect();
+  }, [roomId]); // ✅ All dependencies declared
+  // ...
+```
+
+Event 函数允许您将 Effect 分割为响应部分(应该“响应”响应值，如 roomId 及其更改)和非响应部分(只读取其最新值，如 onMessage 读取ismute)。由于你是在 Event 函数内部读取的 isMuted，那么它就不需要是 Effect 的依赖项。因此，当你打开和关闭“Muted”设置时，聊天不会重新连接，解决了最初的问题!
+
+### 为属性包裹 Event 函数
+
+当你的组件接收一个事件处理程序作为道具时，你可能会遇到类似的问题:
+
+```jsx
+function ChatRoom({ roomId, onReceiveMessage }) {
+  const [messages, setMessages] = useState([]);
+
+  useEffect(() => {
+    const connection = createConnection();
+    connection.connect();
+    connection.on('message', (receivedMessage) => {
+      onReceiveMessage(receivedMessage);
+    });
+    return () => connection.disconnect();
+  }, [roomId, onReceiveMessage]); // ✅ All dependencies declared
+  // ...
+```
+
+假设父组件在每次渲染时都传递一个不同的 onReceiveMessage 函数:
+
+```jsx
+<ChatRoom
+  roomId={roomId}
+  onReceiveMessage={receivedMessage => {
+    // ...
+  }}
+/>
+```
+
+因为 onReceiveMessage 是你的 Effect 的依赖项，它会导致 Effect 在每个父级重渲染后重新同步。这将使它重新连接到聊天。要解决这个问题，将调用封装在 Event 函数中:
+
+```jsx
+function ChatRoom({ roomId, onReceiveMessage }) {
+  const [messages, setMessages] = useState([]);
+
+  const onMessage = useEvent(receivedMessage => {
+    onReceiveMessage(receivedMessage);
+  });
+
+  useEffect(() => {
+    const connection = createConnection();
+    connection.connect();
+    connection.on('message', (receivedMessage) => {
+      onMessage(receivedMessage);
+    });
+    return () => connection.disconnect();
+  }, [roomId]); // ✅ All dependencies declared
+  // ...
+```
+
+事件函数不是响应式的，因此不需要将它们指定为依赖项。因此，即使父组件在每次重渲染时传递的函数不同，聊天也不会再重新连接。
+
+### 区分响应式代码和非响应式代码
+
+在本例中，您希望在 roomId 每次更改时记录一次访问。您希望将当前的 notificationCount 包含在每个日志中，但不希望对notificationCount 的更改触发日志事件。
+
+解决方案还是将非响应式代码拆分为 Event 函数:
+
+```jsx
+function Chat({ roomId, notificationCount }) {
+  const onVisit = useEvent(visitedRoomId => {
+    logVisit(visitedRoomId, notificationCount);
+  });
+
+  useEffect(() => {
+    onVisit(roomId);
+  }, [roomId]); // ✅ All dependencies declared
+  // ...
+}
+```
+
+您希望您的逻辑与 roomId 有关，因此您在 Effect 中读取 roomId。但是，您不希望更改 notificationCount 来记录额外的访问，因此您在Event 函数内部读取 notificationCount。了解更多关于使用事件函数从 Effects 中读取最新的属性和状态的信息。
+
+### 是否有一些反应性值在无意中发生了变化?
+
+有时，您确实希望您的 Effect 对某个值“做出反应”，但该值的变化比您希望的要频繁——而且可能不能从用户的角度反映任何实际的变化。例如，假设您在组件的主体中创建了一个 options 对象，然后从 Effect 内部读取该对象:
+
+```jsx
+function ChatRoom({ roomId }) {
+  // ...
+  const options = {
+    serverUrl: serverUrl,
+    roomId: roomId
+  };
+
+  useEffect(() => {
+    const connection = createConnection(options);
+    connection.connect();
+    // ...
+```
+
+这个对象是在组件主体中声明的，因此它是一个响应值。当您在 Effect 中读取这样的响应值时，您将其声明为依赖项。这可以确保你的效果对它的变化“做出反应”:
+
+```jsx
+  // ...
+  useEffect(() => {
+    const connection = createConnection(options);
+    connection.connect();
+    return () => connection.disconnect();
+  }, [options]); // ✅ All dependencies declared
+  // ...
+
+```
+
+将其声明为依赖关系非常重要!这可以确保，例如，如果 roomId 发生变化，那么您的 Effect 将使用新选项重新连接到聊天。然而，上面的代码也有一个问题。要查看问题，试着在下面的沙箱中输入，看看控制台中发生了什么:
+
+```jsx
+const serverUrl = 'https://localhost:1234';
+
+function ChatRoom({ roomId }) {
+  const [message, setMessage] = useState('');
+
+  const options = {
+    serverUrl: serverUrl,
+    roomId: roomId
+  };
+
+  useEffect(() => {
+    const connection = createConnection(options);
+    connection.connect();
+    return () => connection.disconnect();
+  }, [options]);
+
+  return (
+    <>
+      <h1>Welcome to the {roomId} room!</h1>
+      <input value={message} onChange={e => setMessage(e.target.value)} />
+    </>
+  );
+}
+
+export default function App() {
+  const [roomId, setRoomId] = useState('general');
+  return (
+    <>
+      <label>
+        Choose the chat room:{' '}
+        <select
+          value={roomId}
+          onChange={e => setRoomId(e.target.value)}
+        >
+          <option value="general">general</option>
+          <option value="travel">travel</option>
+          <option value="music">music</option>
+        </select>
+      </label>
+      <hr />
+      <ChatRoom roomId={roomId} />
+    </>
+  );
+```
+
+在上面的沙箱中，输入只更新消息状态变量。从用户的角度来看，这应该不会影响聊天连接。但是，每次更新消息时，组件都会重新渲染。当组件重新渲染时，其中的代码将从头开始再次运行。
+
+这意味着在每次重新渲染 ChatRoom 组件时都从头创建一个新的 options 对象。React 看到 options 对象与上次呈现期间创建的 options 对象是不同的对象。这就是为什么它会重新同步你的 Effect (这取决于选项)，聊天在你输入时重新连接。
+
+这个问题尤其会影响对象和函数。在JavaScript中，每个新创建的对象和函数都被认为是不同于其他对象和函数的。它们里面的内容可能是一样的，这并不重要!
+
+```jsx
+// During the first render
+const options1 = { serverUrl: 'https://localhost:1234', roomId: 'music' };
+
+// During the next render
+const options2 = { serverUrl: 'https://localhost:1234', roomId: 'music' };
+
+// These are two different objects!
+console.log(Object.is(options1, options2)); // false
+```
+
+**对象和函数的依赖关系会产生一个风险，即您的 Effect 会比您需要的更频繁地重新同步。**
+
+这就是为什么，只要可能，你应该尽量避免对象和函数作为你的 Effect 的依赖项。相反，尝试将它们移到组件之外的 Effect 内部，或从中提取原始值。
+
+### 将静态对象和函数移到组件外部
+
+如果对象不依赖于任何道具和状态，你可以将该对象移出组件:
+
+```jsx
+const options = {
+  serverUrl: 'https://localhost:1234',
+  roomId: 'music'
+};
+
+function ChatRoom() {
+  const [message, setMessage] = useState('');
+
+  useEffect(() => {
+    const connection = createConnection(options);
+    connection.connect();
+    return () => connection.disconnect();
+  }, []); // ✅ All dependencies declared
+  // ...
+
+```
+
+这样，你就可以向 linter 证明它不是反应性的。它不会因为重新渲染而改变，所以它不需要成为 Effect 的依赖项。现在重新渲染聊天室不会导致你的效果重新同步。
+
+这也适用于函数:
+
+```jsx
+function createOptions() {
+  return {
+    serverUrl: 'https://localhost:1234',
+    roomId: 'music'
+  };
+}
+
+function ChatRoom() {
+  const [message, setMessage] = useState('');
+
+  useEffect(() => {
+    const options = createOptions();
+    const connection = createConnection();
+    connection.connect();
+    return () => connection.disconnect();
+  }, []); // ✅ All dependencies declared
+  // ...
+
+```
+
+因为 createOptions 是在组件外部声明的，所以它不是一个响应值。这就是为什么它不需要在 Effect 的依赖项中指定，也不会导致 Effect重新同步的原因。
+
+### 在效果中移动动态对象和函数
+
+如果对象依赖于一些可能因重新呈现而改变的响应值，比如 roomId 道具，则不能将其拉出组件。但是，你可以将它的创建移动到 Effect的代码中:
+
+```jsx
+const serverUrl = 'https://localhost:1234';
+
+function ChatRoom({ roomId }) {
+  const [message, setMessage] = useState('');
+
+  useEffect(() => {
+    const options = {
+      serverUrl: serverUrl,
+      roomId: roomId
+    };
+    const connection = createConnection(options);
+    connection.connect();
+    return () => connection.disconnect();
+  }, [roomId]); // ✅ All depend
+```
+
+既然在 Effect 中声明了 options，它就不再是 Effect 的依赖项了。相反，您的 Effect 使用的惟一响应值是 roomId。因为 roomId 不是一个对象或函数，所以可以肯定它不会无意中有所不同。在 JavaScript 中，数字和字符串是根据它们的内容进行比较的:
+
+```jsx
+// During the first render
+const roomId1 = 'music';
+
+// During the next render
+const roomId2 = 'music';
+
+// These two strings are the same!
+console.log(Object.is(roomId1, roomId2)); // true
+
+```
+
+多亏了这个修复，如果你编辑输入，聊天不再重新连接:
+
+App.js
+
+```jsx
+import { useState, useEffect } from 'react';
+import { createConnection } from './chat.js';
+
+const serverUrl = 'https://localhost:1234';
+
+function ChatRoom({ roomId }) {
+  const [message, setMessage] = useState('');
+
+  useEffect(() => {
+    const options = {
+      serverUrl: serverUrl,
+      roomId: roomId
+    };
+    const connection = createConnection(options);
+    connection.connect();
+    return () => connection.disconnect();
+  }, [roomId]);
+
+  return (
+    <>
+      <h1>Welcome to the {roomId} room!</h1>
+      <input value={message} onChange={e => setMessage(e.target.value)} />
+    </>
+  );
+}
+
+export default function App() {
+  const [roomId, setRoomId] = useState('general');
+  return (
+    <>
+      <label>
+        Choose the chat room:{' '}
+        <select
+          value={roomId}
+          onChange={e => setRoomId(e.target.value)}
+        >
+          <option value="general">general</option>
+          <option value="travel">travel</option>
+          <option value="music">music</option>
+        </select>
+      </label>
+      <hr />
+      <ChatRoom roomId={roomId} />
+    </>
+  );
+}
+```
+
+但是，如您所料，当您更改 roomId 下拉菜单时，它会重新连接。
+
+这也适用于函数:
+
+```jsx
+const serverUrl = 'https://localhost:1234';
+
+function ChatRoom({ roomId }) {
+  const [message, setMessage] = useState('');
+
+  useEffect(() => {
+    function createOptions() {
+      return {
+        serverUrl: serverUrl,
+        roomId: roomId
+      };
+    }
+
+    const options = createOptions();
+    const connection = createConnection(options);
+    connection.connect();
+    return () => connection.disconnect();
+  }, [roomId]); // ✅ All dependencies declared
+  // ...
+```
+
+您可以编写自己的函数来将 Effect 中的逻辑分组。只要你在 Effect 中声明了它们，它们就不是反应值，所以它们不需要是 Effect 的依赖项。
+
+**从对象中读取原语值** 有时，你可能会从道具中收到一个对象:
+
+```jsx
+function ChatRoom({ options }) {
+  const [message, setMessage] = useState('');
+
+  useEffect(() => {
+    const connection = createConnection(options);
+    connection.connect();
+    return () => connection.disconnect();
+  }, [options]); // ✅ All dependencies declared
+  // ...
+```
+
+这里的风险是父组件会在呈现过程中创建对象:
+
+```jsx
+<ChatRoom
+  roomId={roomId}
+  options={{
+    serverUrl: serverUrl,
+    roomId: roomId
+  }}
+/>
+```
+
+这将导致您的 Effect 在每次父组件重新呈现时重新连接。为了解决这个问题，从 Effect 外部的对象中读取所有必要的信息，并避免有对象和函数的依赖关系:
+
+```jsx
+function ChatRoom({ options }) {
+  const [message, setMessage] = useState('');
+
+  const { roomId, serverUrl } = options;
+  useEffect(() => {
+    const connection = createConnection({
+      roomId: roomId,
+      serverUrl: serverUrl
+    });
+    connection.connect();
+    return () => connection.disconnect();
+  }, [roomId, serverUrl]); // ✅ All dependencies declared
+```
+
+逻辑有点重复(从Effect外部的对象读取一些值，然后在Effect内部创建具有相同值的对象)。但它使你的效果所依赖的信息非常明确。如果父组件无意中重新创建了一个对象，则聊天将不会重新连接。然而，如果选项。roomId或options。serverUrl实际改变，聊天将重新连接，如您所期望的。
+
+### 从函数中计算初始值
+
+同样的方法也适用于函数。例如，假设父组件传递一个函数:
+
+```jsx
+<ChatRoom
+  roomId={roomId}
+  getOptions={() => {
+    return {
+      serverUrl: serverUrl,
+      roomId: roomId
+    };
+  }}
+/>
+```
+
+为了避免使它成为一个依赖项(从而导致它在重新渲染时重新连接)，在 Effect 外面调用它。这给了你不是对象的 roomId 和 serverUrl 值，你可以从你的 Effect 内部读取:
+
+```jsx
+function ChatRoom({ getOptions }) {
+  const [message, setMessage] = useState('');
+
+  const { roomId, serverUrl } = getOptions();
+  useEffect(() => {
+    const connection = createConnection({
+      roomId: roomId,
+      serverUrl: serverUrl
+    });
+    connection.connect();
+    return () => connection.disconnect();
+  }, [roomId, serverUrl]); // ✅ All dependencies declared
+  // ...
+```
+
+这只适用于纯函数，因为在渲染期间调用它们是安全的。如果您的函数是一个事件处理程序，但您不希望它的更改重新同步您的 Effect，请将其包装到 event 函数中。
+
+回顾
+
+- 依赖项应该始终与代码匹配。
+- 当您对依赖项不满意时，需要编辑的是代码。
+- 抑制linter会导致非常混乱的bug，你应该总是避免它。
+- 要删除一个依赖，你需要向linter“证明”它是不必要的。
+- 如果Effect中的代码应该在响应特定交互时运行，则将该代码移动到事件处理程序中。
+- 如果你的效果的不同部分因为不同的原因需要重新运行，将它分成几个效果。
+- 如果您希望基于前一个状态更新某个状态，则传递一个更新器函数。
+- 如果你想读取最新的值而不“反应”它，从你的Effect中提取一个Event函数。
+- 在JavaScript中，如果对象和函数是在不同的时间创建的，它们就会被认为是不同的。
+- 尽量避免对象和函数依赖关系。将它们移动到组件外部或在Effect内部。
+
+### 每一次渲染都有它自己的事件处理函数
+
+### 每次渲染都有它自己的Effects
+
+### 每一次渲染都有它自己的…所有
+
+### 关于依赖项不要对React撒谎
+
+**`useEffect`使你能够根据props和state*同步*React tree之外的东西。**
+
+- 该 Hook 接收一个包含命令式、且可能有副作用代码的函数。’=在函数组件主体内（这里指在 React 渲染阶段）改变 DOM、添加订阅、设置定时器、记录日志以及执行其他包含副作用的操作都是不被允许的，因为这可能会产生莫名其妙的 bug 并破坏 UI 的一致性。
+- 副作用函数：已经在 React 组件中执行过数据获取、订阅或者手动修改过 DOM。我们统一把这些操作称为“副作用”，或者简称为“作用”。
+- 给函数组件增加了操作副作用的能力，*Effect Hook* 可以让你在函数组件中执行副作用操作
+- 它跟 class 组件中的 `componentDidMount`、`componentDidUpdate` 和 `componentWillUnmount` 具有相同的用途，只不过被合并成了一个 API。
+- 当你调用 `useEffect` 时，就是在告诉 React 在完成对 DOM 的更改后运行你的“副作用”函数。由于副作用函数是在组件内声明的，所以它们可以访问到组件的 props 和 state。
+- 默认情况下，React 会在每次渲染后调用副作用函数 —— **包括**第一次渲染的时候
+- 副作用函数还可以通过返回一个函数来指定如何“清除”副作用。
+- 通过使用 Hook，你可以把组件内相关的副作用组织在一起（例如创建订阅及取消订阅），而不要把它们拆分到不同的生命周期函数里。
+- **清除 effect**
+- **effect 的执行时机**
+    - 在浏览器完成布局与绘制之后
+- **effect 的条件执行**
+
+**`useEffect` 做了什么？** 通过使用这个 Hook，你可以告诉 React 组件需要在渲染后执行某些操作。React 会保存你传递的函数（我们将它称之为 “effect”），并且在执行 DOM 更新之后调用它。在这个 effect 中，我们设置了 document 的 title 属性，不过我们也可以执行数据获取或调用其他命令式的 API。
+
+**为什么在组件内部调用 `useEffect`？** 将 `useEffect` 放在组件内部让我们可以在 effect 中直接访问 `count` state 变量（或其他 props）。我们不需要特殊的 API 来读取它 —— 它已经保存在函数作用域中。Hook 使用了 JavaScript 的闭包机制，而不用在 JavaScript 已经提供了解决方案的情况下，还引入特定的 React API。
+
+**`useEffect` 会在每次渲染后都执行吗？** 是的，默认情况下，它在第一次渲染之后*和*每次更新之后都会执行。（我们稍后会谈到[如何控制它](https://react.docschina.org/docs/hooks-effect.html#tip-optimizing-performance-by-skipping-effects)。）你可能会更容易接受 effect 发生在“渲染之后”这种概念，不用再去考虑“挂载”还是“更新”。React 保证了每次运行 effect 的同时，DOM 都已经更新完毕。
+
+### 无需清除的 effect
+
+### 需要清除的 effect
+
+- effect 返回一个函数，React 将会在执行清除操作时调用它：
+
+**为什么要在 effect 中返回一个函数？** 这是 effect 可选的清除机制。每个 effect 都可以返回一个清除函数。如此可以将添加和移除订阅的逻辑放在一起。它们都属于 effect 的一部分。
+
+**React 何时清除 effect？** React 会在组件卸载的时候执行清除操作。
+
+### 在依赖列表中省略函数是否安全？
+
+### Effect 的提示
+
+### 使用多个 Effect 实现关注点分离
+
+### 为什么每次更新的时候都要运行 Effect
+
+### 通过跳过 Effect 进行性能优化
+
+## 自定义 Hook
+
+## Hook 使用规则
+
+- 只能在**函数最外层**调用 Hook。不要在循环、条件判断或者子函数中调用。
+- 只能在 **React 的函数组件**中调用 Hook。不要在其他 JavaScript 函数中调用。（还有一个地方可以调用 Hook —— 就是自定义的 Hook 中，我们稍后会学习到。）
+
+- [React Docs](https://beta.reactjs.org/learn)
+- [Making Sense of React Hooks](https://dev.to/dan_abramov/making-sense-of-react-hooks-2eib)
+- [Avoiding race conditions and memory leaks in React useEffect](https://dev.to/saranshk/avoiding-race-conditions-and-memory-leaks-in-react-useeffect-3mme)
+- [How to use async function in React hooks useEffect (Typescript/JS)?](https://javascript.plainenglish.io/how-to-use-async-function-in-react-hook-useeffect-typescript-js-6204a788a435)
+- [Cleaning up Async Functions in React’s useEffect Hook (Unsubscribing)](https://dev.to/elijahtrillionz/cleaning-up-async-functions-in-reacts-useeffect-hook-unsubscribing-3dkk)
+- [Guide to React Hook-useContext()](https://dev.to/srishtikprasad/guide-to-react-hook-usecontext-3lp7)
+- [Demystifying React Hooks: useContext](https://dev.to/milu_franz/demystifying-react-hooks-usecontext-5g4a)
+- [Replace lifecycle with hooks in React](https://dev.to/trentyang/replace-lifecycle-with-hooks-in-react-3d4n)
+- [React Hooks Best Practices in 2022](https://dev.to/kuldeeptarapara/react-hooks-best-practices-in-2022-4bh0)
+- [Awesome Things Related To React Hooks](https://dev.to/said_mounaim/awesome-things-related-to-react-hooks-30c4)
+- [React Hooks: Memoization](https://medium.com/@sdolidze/react-hooks-memoization-99a9a91c8853)
+- [The Iceberg of React Hooks](https://medium.com/@sdolidze/the-iceberg-of-react-hooks-af0b588f43fb)
+- [How to use useReducer in React Hooks for performance optimization](https://medium.com/crowdbotics/how-to-use-usereducer-in-react-hooks-for-performance-optimization-ecafca9e7bf5)
+- [React Hooks: useCallback and useMemo](https://blog.hackages.io/react-hooks-usecallback-and-usememo-8d5bb2b67231)
+- [React Hooks - Understanding Component Re-renders](https://medium.com/@guptagaruda/react-hooks-understanding-component-re-renders-9708ddee9928)
+- https://medium.com/capbase-engineering/asynchronous-functional-programming-using-react-hooks-e51a748e6869
+- [6 Reasons to Use React Hooks Instead of Classes](https://blog.bitsrc.io/6-reasons-to-use-react-hooks-instead-of-classes-7e3ee745fe04)
